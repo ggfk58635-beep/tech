@@ -3,12 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TechOS 2.2.0 (Kernel & Isolation Update)</title>
+    <title>TechOS 2.3.0 (Global & Backup)</title>
     <style>body, html { margin:0; padding:0; height:100%; background:#000; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; }</style>
 </head>
 <body>
 <canvas id="os-surface"></canvas>
 <script>
+/**
+ * [i18n Engine] - 全局多语言国际化引擎
+ */
+const i18n = {
+    lang: localStorage.getItem('techos_lang') || 'en', // 默认全英文
+    t: (key) => (i18n.dict[i18n.lang] && i18n.dict[i18n.lang][key]) ? i18n.dict[i18n.lang][key] : key,
+    dict: {
+        en: {
+            'title': 'TechOS 2.3.0 | Global Edition',
+            'sys_store': 'Store',
+            'sys_imp': 'Import',
+            'sys_bkp': 'Backup',
+            'sys_set': 'Settings',
+            'sys_mgr': 'Task Mgr',
+            'app_store': 'Official App Store',
+            'app_imp': 'IMP Terminal',
+            'imp_placeholder': '>> IMP_TERMINAL_READY\n>> Paste JSON/HTML/JS code here...\n>> Auto compile & mount.',
+            'btn_inject': 'Open Code Injector',
+            'btn_write': 'Execute VFS Write',
+            'btn_cancel': 'Abort',
+            'btn_install': 'Install',
+            'btn_uninstall': 'Uninstall',
+            'btn_show': 'Show',
+            'btn_kill': 'Kill',
+            'btn_refresh': 'Refresh UI',
+            'btn_new_perm': 'New PermDir',
+            'btn_force_del': 'Force Del',
+            'msg_no_bg': 'No background apps suspended',
+            'msg_kernel_info': 'Sys Kernel Settings',
+            'msg_bkp_info': 'Data Backup & Restore',
+            'btn_bkp': 'Backup System Data',
+            'btn_res': 'Restore System Data',
+            'btn_lang': '切换至 简体中文',
+            'drag_out': '(Drag out to release)',
+            '新建文件夹': 'New Folder',
+            '永久文件夹': 'Perm Folder',
+            'msg_auto_app': 'AutoApp Container Running...',
+            'msg_vfs_ready': 'VFS Memory Mapped',
+            'alert_vfs_ok': 'Success: Standard .tap written to VFS',
+            'alert_compile_ok': 'Success: Code wrapped in AutoApp',
+            'alert_res_ok': 'Restore completed! System will reboot.',
+            'alert_res_err': 'Invalid backup file format.',
+            'alert_res_fail': 'Failed to parse file.',
+            'info_cpu': 'CPU: Background freeze active',
+            'info_mem': 'MEM: Ghost memory GC active',
+            'info_ui': 'UI: Z-axis strict isolation',
+            'info_vfs': 'VFS: Infinite DOM bridge active'
+        },
+        zh: {
+            'title': 'TechOS 2.3.0 | 国际内核版',
+            'sys_store': '商店',
+            'sys_imp': '导入',
+            'sys_bkp': '备份',
+            'sys_set': '设置',
+            'sys_mgr': '窗口管理',
+            'app_store': '官方应用商店',
+            'app_imp': 'IMP 高级导入终端',
+            'imp_placeholder': '>> IMP_TERMINAL_READY\n>> 在此粘贴海量 JSON / HTML / JS 代码...\n>> 系统将自动分析并挂载。',
+            'btn_inject': '开启全量代码注入通道',
+            'btn_write': '执行 VFS 写入',
+            'btn_cancel': '中断连接',
+            'btn_install': '安装',
+            'btn_uninstall': '卸载',
+            'btn_show': '显示',
+            'btn_kill': '杀后台',
+            'btn_refresh': '刷新系统',
+            'btn_new_perm': '新建永久夹',
+            'btn_force_del': '强力删除',
+            'msg_no_bg': '无挂起的后台应用',
+            'msg_kernel_info': '系统内核设置',
+            'msg_bkp_info': '数据备份与恢复中心',
+            'btn_bkp': '备份系统数据',
+            'btn_res': '恢复系统数据',
+            'btn_lang': 'Switch to English',
+            'drag_out': '(移出面板释放到桌面)',
+            '新建文件夹': '新建文件夹',
+            '永久文件夹': '永久文件夹',
+            'msg_auto_app': '自托管代码沙盒运行中...',
+            'msg_vfs_ready': 'VFS 虚拟内存映射就绪',
+            'alert_vfs_ok': '解析成功：标准 .tap 封包已录入 VFS',
+            'alert_compile_ok': '多语言编译成功：非标准代码已自动封装为 AutoApp 容器。',
+            'alert_res_ok': '恢复成功！系统即将重启加载数据。',
+            'alert_res_err': '无效的备份文件，缺失版本校验。',
+            'alert_res_fail': '文件解析失败，请检查格式。',
+            'info_cpu': 'CPU调控: 黑阈级进程冻结机制已开启',
+            'info_mem': '内存清理: 幽灵内存清浊释放守护中',
+            'info_ui': 'UI渲染: Z轴严格穿透隔离生效中',
+            'info_vfs': 'VFS: 无尽文本 DOM 桥接模式已激活'
+        }
+    }
+};
+
 /**
  * [VFS 2.5] - 高容量虚拟文件系统
  */
@@ -20,51 +112,55 @@ const VFS = {
 };
 
 const SysApps = {
-    'sys_store': { name: "商店", icon: "STO" },
-    'sys_imp': { name: "导入", icon: "IMP" }
+    'sys_store': { nameKey: "sys_store", icon: "STO" },
+    'sys_imp': { nameKey: "sys_imp", icon: "IMP" },
+    'sys_bkp': { nameKey: "sys_bkp", icon: "BKP" }
 };
 
 const CloudStore = {
     'app_winmgr': {
-        name: "窗口管理", icon: "MGR",
+        nameKey: "sys_mgr", icon: "MGR",
         logic: `
-            UI.text("后台进程调度中心", wx+15, wy+50, 14, '#00FF9C');
+            UI.text(i18n.t('sys_mgr'), wx+15, wy+50, 14, '#00FF9C');
             if (State.bgWins.length === 0) {
-                UI.text("无挂起的后台应用", wx+ww/2, wy+wh/2, 12, '#555', 'center');
+                UI.text(i18n.t('msg_no_bg'), wx+ww/2, wy+wh/2, 12, '#555', 'center');
             } else {
                 let cy = 70;
                 [...State.bgWins].forEach((id, idx) => {
-                    let appName = SysApps[id] ? SysApps[id].name : (VFS.disk[id] ? VFS.disk[id].name : id);
+                    let app = SysApps[id] || VFS.disk[id];
+                    let appName = app ? (app.nameKey ? i18n.t(app.nameKey) : app.name) : id;
                     UI.rect(wx+15, wy+cy, ww-30, 45, '#00FF9C');
                     UI.text(appName, wx+25, wy+cy+26, 14, '#00FF9C');
                     UI.regBtn(wx+ww-140, wy+cy+10, 55, 25, () => {
                         State.bgWins = State.bgWins.filter(w => w !== id);
                         if(!State.winStack.includes(id)) State.winStack.unshift(id); 
-                    }, "显示");
+                    }, i18n.t('btn_show'));
                     UI.regBtn(wx+ww-75, wy+cy+10, 55, 25, () => {
                         State.bgWins = State.bgWins.filter(w => w !== id);
                         State.winStack = State.winStack.filter(w => w !== id);
                         delete window.AppState[id];
-                    }, "杀后台");
+                    }, i18n.t('btn_kill'));
                     cy += 55;
                 });
             }
         `
     },
     'app_settings': {
-        name: "系统内核", icon: "KER",
+        nameKey: "sys_set", icon: "SET",
         logic: `
-            UI.text("TechOS Kernel", wx+ww/2, wy+60, 26, '#00FF9C', 'center');
-            UI.text("Version 2.2.0 (Perf & Shield)", wx+ww/2, wy+85, 11, '#00FF9C', 'center');
-            UI.rect(wx+20, wy+105, ww-40, 1, '#00FF9C', true);
-            let info = [
-                "CPU调控: 黑阈级进程冻结机制已开启",
-                "内存清理: 幽灵内存清浊释放守护中",
-                "UI渲染: Z轴严格穿透隔离生效中",
-                "VFS: 无尽文本 DOM 桥接模式已激活"
-            ];
-            info.forEach((txt, i) => { UI.text(txt, wx+25, wy+135 + i*25, 12, '#00FF9C'); });
-            UI.text("Sys Ticks: " + OS_Kernel.ticks, wx+25, wy+250, 10, '#555');
+            UI.text(i18n.t('msg_kernel_info'), wx+ww/2, wy+50, 20, '#00FF9C', 'center');
+            UI.text("Version 2.3.0 (i18n & Core)", wx+ww/2, wy+70, 11, '#00FF9C', 'center');
+            
+            UI.regBtn(wx+ww/2-70, wy+90, 140, 28, () => {
+                i18n.lang = (i18n.lang === 'en') ? 'zh' : 'en';
+                localStorage.setItem('techos_lang', i18n.lang);
+                Layout.sync();
+            }, i18n.t('btn_lang'));
+
+            UI.rect(wx+20, wy+135, ww-40, 1, '#00FF9C', true);
+            let info = [ i18n.t('info_cpu'), i18n.t('info_mem'), i18n.t('info_ui'), i18n.t('info_vfs') ];
+            info.forEach((txt, i) => { UI.text(txt, wx+25, wy+160 + i*25, 11, '#00FF9C'); });
+            UI.text("Sys Ticks: " + OS_Kernel.ticks, wx+25, wy+280, 10, '#555');
         `
     }
 };
@@ -82,47 +178,42 @@ const State = {
 
 State.getActiveWin = () => State.winStack.length > 0 ? State.winStack[State.winStack.length - 1] : null;
 
-/**
- * [OS Kernel] - 自研硬件性能与内存调度中心
- */
 const OS_Kernel = {
     ticks: 0,
     blackThresholdControl: () => {
-        // CPU 优化：黑阈级后台冻结，仅为活跃窗口保留最高算力
         let active = State.getActiveWin();
         State.bgWins.forEach(id => { if(window.AppState[id]) window.AppState[id].frozen = true; });
         if(active && window.AppState[active]) window.AppState[active].frozen = false;
     },
     qingzhuoGC: () => {
-        // 内存优化：每 300 帧执行一次幽灵内存清浊释放，防止系统卡顿
         if (OS_Kernel.ticks % 300 === 0) {
             let aliveIds = [...State.winStack, ...State.bgWins];
-            for(let key in window.AppState) {
-                if(!aliveIds.includes(key)) delete window.AppState[key];
-            }
+            for(let key in window.AppState) { if(!aliveIds.includes(key)) delete window.AppState[key]; }
         }
     },
-    cycle: () => {
-        OS_Kernel.ticks++;
-        OS_Kernel.blackThresholdControl();
-        OS_Kernel.qingzhuoGC();
-    }
+    cycle: () => { OS_Kernel.ticks++; OS_Kernel.blackThresholdControl(); OS_Kernel.qingzhuoGC(); }
 };
 
 /**
- * [Spatial Engine] - 智能空间避让
+ * [Spatial Engine] - 智能空间避让 (修复空气墙Bug)
  */
 const Spatial = {
     getSafePosition: (startX, startY, ignoreId) => {
         let ww = window.innerWidth || 300, wh = window.innerHeight || 500;
         let clamp = (v, min, max) => Math.max(min, Math.min(v, max));
-        let x = clamp(startX, 10, ww - 70);
-        let y = clamp(startY, 30, wh - 70);
+        let x = clamp(startX, 15, ww - 70);
+        let y = clamp(startY, 35, wh - 70);
         
         const isColliding = (cx, cy) => {
             return Layout.data.some(item => {
                 if (item.id === ignoreId || item.x === undefined || item.y === undefined) return false;
-                return Math.abs(cx - item.x) < 70 && Math.abs(cy - item.y) < 85;
+                
+                // 【核心修复】：过滤未渲染的幽灵元素，防止它们制造隐形空气墙
+                let isValid = (item.type === 'folder' || item.type === 'perm_folder') ? true : !!(SysApps[item.id] || VFS.disk[item.id]);
+                if (!isValid) return false;
+
+                // 缩小判定体积，允许图标更紧凑排列
+                return Math.abs(cx - item.x) < 65 && Math.abs(cy - item.y) < 75;
             });
         };
 
@@ -133,8 +224,8 @@ const Spatial = {
             let points = Math.floor((2 * Math.PI * r) / step); 
             for (let i = 0; i < points; i++) {
                 let angle = (i / points) * Math.PI * 2;
-                let testX = clamp(x + r * Math.cos(angle), 10, ww - 70);
-                let testY = clamp(y + r * Math.sin(angle), 30, wh - 70);
+                let testX = clamp(x + r * Math.cos(angle), 15, ww - 70);
+                let testY = clamp(y + r * Math.sin(angle), 35, wh - 70);
                 if (!isColliding(testX, testY)) return {x: testX, y: testY};
             }
         }
@@ -144,7 +235,7 @@ const Spatial = {
 
 const Layout = {
     data: JSON.parse(localStorage.getItem('techos_layout')) || [
-        {type:'app', id:'sys_store'}, {type:'app', id:'sys_imp'}
+        {type:'app', id:'sys_store'}, {type:'app', id:'sys_imp'}, {type:'app', id:'sys_bkp'}
     ],
     save: () => localStorage.setItem('techos_layout', JSON.stringify(Layout.data)),
     sync: () => {
@@ -183,7 +274,6 @@ const Layout = {
                 item.x = pos.x; item.y = pos.y;
             }
         });
-
         Layout.save();
     }
 };
@@ -204,15 +294,13 @@ const UI = {
 
             if (State.contextMenu) {
                 UI.hitTestButtons(pt.x, pt.y, true);
-                State.contextMenu = null;
-                return; 
+                State.contextMenu = null; return; 
             }
 
             State.drag.startX = pt.x; State.drag.startY = pt.y; State.drag.currX = pt.x; State.drag.currY = pt.y;
             
             let hit = null;
             if(!State.getActiveWin() && !UI.hitTestButtons(pt.x, pt.y, false)) {
-                // 此时 iconHitboxes 已由渲染引擎做好严格过滤，不会出现透穿
                 hit = UI.iconHitboxes.find(b => pt.x >= b.x && pt.x <= b.x+b.w && pt.y >= b.y && pt.y <= b.y+b.h);
                 if(hit) { State.drag.item = hit.item; State.drag.active = false; }
             }
@@ -242,7 +330,6 @@ const UI = {
 
         c.onpointerup = (e) => {
             if(State.longPressTimer) clearTimeout(State.longPressTimer); 
-
             let now = Date.now();
             let pt = e.changedTouches ? {x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY} : {x: e.clientX, y: e.clientY};
             
@@ -256,13 +343,11 @@ const UI = {
                 }
             } else if (!State.contextMenu) {
                 if (now - State.lastClickTime > 200) {
-                    UI.hitTestButtons(pt.x, pt.y, true);
-                    State.lastClickTime = now;
+                    UI.hitTestButtons(pt.x, pt.y, true); State.lastClickTime = now;
                 }
             }
             State.drag.item = null; State.drag.active = false;
         };
-        
         UI.loop();
     },
 
@@ -302,12 +387,10 @@ const UI = {
         let safeX = Math.max(10, Math.min(x - 30, UI.w - 70));
         let safeY = Math.max(30, Math.min(y - 30, UI.h - 70));
 
-        // 隔离层：处理处于文件夹状态下的丢弃行为
         if (State.openFolder) {
             const fw = Math.min(UI.w*0.9, 400), fh = Math.min(UI.h*0.6, 400);
             const fx = (UI.w-fw)/2, fy = (UI.h-fh)/2;
             
-            // 如果移出了文件夹面板区域，执行提取逻辑
             if (x < fx || x > fx+fw || y < fy || y > fy+fh) {
                 if (!Layout.data.find(i => i.type === 'app' && i.id === draggedItem.id)) {
                     let pos = Spatial.getSafePosition(safeX, safeY, draggedItem.id);
@@ -321,25 +404,22 @@ const UI = {
                 }
                 Layout.sync();
             }
-            // 【硬隔离修复】如果是在文件夹内部松手，强制中断，绝不执行底层合并逻辑
             return; 
         }
 
         if (draggedItem.type === 'folder' || draggedItem.type === 'perm_folder') {
             let pos = Spatial.getSafePosition(safeX, safeY, draggedItem.id);
             draggedItem.x = pos.x; draggedItem.y = pos.y;
-            Layout.save();
-            return;
+            Layout.save(); return;
         }
 
-        // 常规桌面合并逻辑
         let hitTarget = UI.iconHitboxes.find(b => b.item !== draggedItem && x >= b.x && x <= b.x+b.w && y >= b.y && y <= b.y+b.h);
         if(hitTarget) {
             if(hitTarget.item.type === 'folder' || hitTarget.item.type === 'perm_folder') {
                 if (!hitTarget.item.items.includes(draggedItem.id)) hitTarget.item.items.push(draggedItem.id);
                 Layout.data = Layout.data.filter(i => !(i.type === 'app' && i.id === draggedItem.id));
             } else if(hitTarget.item.type === 'app') {
-                let newFolder = { type: 'folder', id: 'f_'+Date.now(), name: "新建文件夹", items: [hitTarget.item.id, draggedItem.id], x: hitTarget.item.x, y: hitTarget.item.y };
+                let newFolder = { type: 'folder', id: 'f_'+Date.now(), nameKey: '新建文件夹', name: "新建文件夹", items: [hitTarget.item.id, draggedItem.id], x: hitTarget.item.x, y: hitTarget.item.y };
                 let idx = Layout.data.findIndex(i => i === hitTarget.item);
                 if(idx > -1) {
                     Layout.data[idx] = newFolder;
@@ -348,8 +428,7 @@ const UI = {
             }
         } else {
             let pos = Spatial.getSafePosition(safeX, safeY, draggedItem.id);
-            draggedItem.x = pos.x; 
-            draggedItem.y = pos.y;
+            draggedItem.x = pos.x; draggedItem.y = pos.y;
         }
         Layout.sync();
     },
@@ -358,8 +437,7 @@ const UI = {
         for (let i = UI.btns.length - 1; i >= 0; i--) {
             let b = UI.btns[i];
             if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-                if(execute) b.cb();
-                return true;
+                if(execute) b.cb(); return true;
             }
         }
         let activeWin = State.getActiveWin();
@@ -372,18 +450,17 @@ const UI = {
     },
 
     loop: () => {
-        OS_Kernel.cycle(); // 触发内核时钟：调控 CPU 算力与内存
+        OS_Kernel.cycle();
 
         UI.btns = []; UI.iconHitboxes = [];
         UI.ctx.clearRect(0,0,UI.w, UI.h);
         for(let i=0; i<UI.w; i+=40) UI.rect(i, 0, 1, UI.h, 'rgba(0,255,156,0.05)', true);
         
         UI.rect(0,0,UI.w,25,'#111',true); 
-        UI.text(`TechOS 2.2.0 | Kernel Optimized`, 15, 17);
+        UI.text(i18n.t('title'), 15, 17);
 
         const iconSize = 60;
 
-        // 渲染底层桌面图标
         Layout.data.forEach((item) => {
             let cx = item.x, cy = item.y;
             if(State.drag.active && State.drag.item === item) return; 
@@ -393,29 +470,31 @@ const UI = {
                 UI.rect(cx, cy, iconSize, iconSize, fColor);
                 UI.rect(cx+4, cy+4, iconSize-8, iconSize-8, fColor);
                 UI.text(item.type === 'perm_folder' ? "P-DIR" : "DIR", cx+iconSize/2, cy+iconSize/2+4, 12, fColor, 'center');
-                UI.text(item.name, cx+iconSize/2, cy+iconSize+15, 10, fColor, 'center');
+                let fName = item.nameKey ? i18n.t(item.nameKey) : i18n.t(item.name);
+                UI.text(fName, cx+iconSize/2, cy+iconSize+15, 10, fColor, 'center');
                 UI.iconHitboxes.push({x: cx, y: cy, w: iconSize, h: iconSize, item: item});
             } else {
                 let app = SysApps[item.id] || VFS.disk[item.id];
                 if(app) {
                     UI.rect(cx, cy, iconSize, iconSize, '#00FF9C'); 
                     UI.text(app.icon, cx+iconSize/2, cy+iconSize/2+4, 14, '#00FF9C', 'center');
-                    UI.text(app.name, cx+iconSize/2, cy+iconSize+15, 10, '#00FF9C', 'center');
+                    let appName = app.nameKey ? i18n.t(app.nameKey) : app.name;
+                    UI.text(appName, cx+iconSize/2, cy+iconSize+15, 10, '#00FF9C', 'center');
                     UI.iconHitboxes.push({x: cx, y: cy, w: iconSize, h: iconSize, item: item});
                 }
             }
         });
 
-        // 【核心修复】Z轴隔离渲染
         if(State.openFolder && !State.getActiveWin()) {
-            UI.iconHitboxes = []; // 物理切断：清空桌面图标判定区，彻底封杀交互穿透
-            
+            UI.iconHitboxes = []; 
             UI.rect(0, 0, UI.w, UI.h, 'rgba(0,0,0,0.85)', true);
             const fw = Math.min(UI.w*0.9, 400), fh = Math.min(UI.h*0.6, 400);
             const fx = (UI.w-fw)/2, fy = (UI.h-fh)/2;
             let fColor = State.openFolder.type === 'perm_folder' ? '#FFD700' : '#00FF9C';
             UI.rect(fx, fy, fw, fh, '#111', true); UI.rect(fx, fy, fw, fh, fColor);
-            UI.text(State.openFolder.name + " (移出面板释放到桌面)", fx+15, fy+22, 12, fColor);
+            
+            let fName = State.openFolder.nameKey ? i18n.t(State.openFolder.nameKey) : i18n.t(State.openFolder.name);
+            UI.text(fName + " " + i18n.t('drag_out'), fx+15, fy+22, 12, fColor);
             UI.regBtn(fx+fw-30, fy+5, 25, 25, () => State.openFolder = null, "X");
 
             const padding = 20, colSpacing = iconSize + padding, rowSpacing = iconSize + 30;
@@ -430,17 +509,16 @@ const UI = {
 
                     UI.rect(cx, cy, iconSize, iconSize, fColor); 
                     UI.text(app.icon, cx+iconSize/2, cy+iconSize/2+4, 14, fColor, 'center');
-                    UI.text(app.name, cx+iconSize/2, cy+iconSize+15, 10, fColor, 'center');
-                    // 只将处于当前隔离罩内的图标加入响应列队
+                    let appName = app.nameKey ? i18n.t(app.nameKey) : app.name;
+                    UI.text(appName, cx+iconSize/2, cy+iconSize+15, 10, fColor, 'center');
                     UI.iconHitboxes.push({x: cx, y: cy, w: iconSize, h: iconSize, item: virtualItem});
                 }
             });
         }
 
-        // 渲染窗口系统
         let activeWin = State.getActiveWin();
         if (activeWin && !State.contextMenu) {
-            UI.btns = []; // 屏蔽窗口下的按钮穿透
+            UI.btns = []; 
             const ww = Math.min(UI.w * 0.9, 500), wh = Math.min(UI.h * 0.85, 700);
             const wx = (UI.w - ww) / 2, wy = (UI.h - wh) / 2;
             
@@ -457,37 +535,37 @@ const UI = {
             }, "X"); 
 
             if (activeWin === 'sys_store') {
-                UI.text("官方应用商店", wx+10, wy+20, 12, '#000');
+                UI.text(i18n.t('app_store'), wx+10, wy+20, 12, '#000');
                 let ly = 0;
                 for (let cid in CloudStore) {
                     let isIns = VFS.isInstalled(cid);
-                    UI.text(CloudStore[cid].name, wx+15, wy+60+ly);
+                    let cName = CloudStore[cid].nameKey ? i18n.t(CloudStore[cid].nameKey) : CloudStore[cid].name;
+                    UI.text(cName, wx+15, wy+60+ly);
                     UI.regBtn(wx+ww-85, wy+45+ly, 70, 25, () => {
                         isIns ? VFS.removeApp(cid) : VFS.saveApp(cid, CloudStore[cid]);
-                    }, isIns ? "卸载" : "安装");
+                    }, isIns ? i18n.t('btn_uninstall') : i18n.t('btn_install'));
                     ly += 40;
                 }
             } else if (activeWin === 'sys_imp') {
-                UI.text("IMP 高级导入终端", wx+10, wy+20, 12, '#000');
+                UI.text(i18n.t('app_imp'), wx+10, wy+20, 12, '#000');
                 
-                // 【核心升级】 DOM Overlay 注入器，突破原生 API 拦截与截断
-                UI.regBtn(wx+ww/2-80, wy+wh/2-20, 160, 40, () => {
+                UI.regBtn(wx+ww/2-90, wy+wh/2-20, 180, 40, () => {
                     let domMask = document.createElement('div');
                     domMask.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;";
                     
                     let ta = document.createElement('textarea');
-                    ta.placeholder = ">> IMP_TERMINAL_READY\n>> 在此粘贴海量 JSON / HTML / JS 代码...\n>> 系统将自动分析并挂载。";
+                    ta.placeholder = i18n.t('imp_placeholder').replace(/\\n/g, '\n');
                     ta.style.cssText = "width:85%;height:60%;background:#050505;color:#00FF9C;border:1px solid #00FF9C;padding:15px;font-family:monospace;font-size:13px;outline:none;resize:none;box-shadow: 0 0 20px rgba(0,255,156,0.2);";
                     
                     let ctrlBox = document.createElement('div');
                     ctrlBox.style.cssText = "margin-top:25px;display:flex;gap:20px;";
                     
                     let btnOk = document.createElement('button');
-                    btnOk.innerText = "执行 VFS 写入";
+                    btnOk.innerText = i18n.t('btn_write');
                     btnOk.style.cssText = "padding:10px 25px;background:#00FF9C;color:#000;border:none;font-weight:bold;cursor:pointer;font-family:monospace;";
                     
                     let btnCancel = document.createElement('button');
-                    btnCancel.innerText = "中断连接";
+                    btnCancel.innerText = i18n.t('btn_cancel');
                     btnCancel.style.cssText = "padding:10px 25px;background:#333;color:#fff;border:none;cursor:pointer;font-family:monospace;";
                     
                     btnCancel.onclick = () => document.body.removeChild(domMask);
@@ -497,16 +575,14 @@ const UI = {
                             try {
                                 let jsonObj = JSON.parse(val);
                                 VFS.saveApp(jsonObj.id, jsonObj);
-                                alert("解析成功：标准 .tap 封包已录入 VFS");
+                                alert(i18n.t('alert_vfs_ok'));
                             } catch(e) {
-                                // 【多语言自适应编译】
                                 let newId = 'app_' + Date.now();
-                                // 将特殊字符安全转义，防止破坏外层 eval 环境
                                 let safeCode = val.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
                                 let autoApp = {
                                     id: newId, name: "AutoApp", icon: "DEV",
                                     logic: `
-                                        UI.text("自托管代码沙盒运行中...", wx+15, wy+50, 12, '#00FF9C');
+                                        UI.text(i18n.t('msg_auto_app'), wx+15, wy+50, 12, '#00FF9C');
                                         if(!window.AppState['${newId}_init']) {
                                             window.AppState['${newId}_init'] = true;
                                             try { 
@@ -514,11 +590,11 @@ const UI = {
                                                 execContainer();
                                             } catch(err) { console.error("AutoApp Error:", err); }
                                         }
-                                        UI.text("VFS 虚拟内存映射就绪", wx+15, wy+75, 12, '#555');
+                                        UI.text(i18n.t('msg_vfs_ready'), wx+15, wy+75, 12, '#555');
                                     `
                                 };
                                 VFS.saveApp(newId, autoApp);
-                                alert("多语言编译成功：非标准代码已自动封装为 AutoApp 容器。");
+                                alert(i18n.t('alert_compile_ok'));
                             }
                         }
                         document.body.removeChild(domMask);
@@ -527,22 +603,67 @@ const UI = {
                     ctrlBox.appendChild(btnOk); ctrlBox.appendChild(btnCancel);
                     domMask.appendChild(ta); domMask.appendChild(ctrlBox);
                     document.body.appendChild(domMask);
-                }, "开启全量代码注入通道");
+                }, i18n.t('btn_inject'));
 
+            } else if (activeWin === 'sys_bkp') {
+                UI.text(i18n.t('msg_bkp_info'), wx+ww/2, wy+50, 18, '#00FF9C', 'center');
+                
+                UI.regBtn(wx+ww/2-80, wy+110, 160, 35, () => {
+                    let data = {
+                        version: '2.3.0',
+                        vfs: localStorage.getItem('techos_apps'),
+                        layout: localStorage.getItem('techos_layout'),
+                        lang: localStorage.getItem('techos_lang')
+                    };
+                    let blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+                    let a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'TechOS_Backup_' + Date.now() + '.json';
+                    a.click();
+                }, i18n.t('btn_bkp'));
+
+                UI.regBtn(wx+ww/2-80, wy+170, 160, 35, () => {
+                    let input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = e => {
+                        let file = e.target.files[0];
+                        if(!file) return;
+                        let reader = new FileReader();
+                        reader.onload = ev => {
+                            try {
+                                let data = JSON.parse(ev.target.result);
+                                if(data.version) {
+                                    if(data.vfs) localStorage.setItem('techos_apps', data.vfs);
+                                    if(data.layout) localStorage.setItem('techos_layout', data.layout);
+                                    if(data.lang) localStorage.setItem('techos_lang', data.lang);
+                                    alert(i18n.t('alert_res_ok'));
+                                    location.reload();
+                                } else {
+                                    alert(i18n.t('alert_res_err'));
+                                }
+                            } catch(err) {
+                                alert(i18n.t('alert_res_fail'));
+                            }
+                        };
+                        reader.readAsText(file);
+                    };
+                    input.click();
+                }, i18n.t('btn_res'));
             } else {
                 let appData = CloudStore[activeWin] || VFS.disk[activeWin];
                 if(appData) {
-                    UI.text(appData.name, wx+10, wy+20, 12, '#000');
+                    let winTitle = appData.nameKey ? i18n.t(appData.nameKey) : appData.name;
+                    UI.text(winTitle, wx+10, wy+20, 12, '#000');
                     if(window.AppState[activeWin] && window.AppState[activeWin].frozen) {
-                        UI.text("进程已处于黑阈级冻结...", wx+15, wy+60, 12, '#555');
+                        UI.text("Frozen by Kernel...", wx+15, wy+60, 12, '#555');
                     } else {
-                        try { eval(appData.logic); } catch(e) { UI.text("运行时崩溃: " + e.message, wx+15, wy+60); }
+                        try { eval(appData.logic); } catch(e) { UI.text("Error: " + e.message, wx+15, wy+60); }
                     }
                 }
             }
         }
 
-        // 渲染浮动元素
         if(State.drag.active && State.drag.item) {
             UI.ctx.globalAlpha = 0.6;
             let dColor = State.drag.item.type === 'perm_folder' ? '#FFD700' : '#00FF9C';
@@ -562,15 +683,15 @@ const UI = {
             if (!State.contextMenu.target) {
                 UI.regBtn(mx+5, my+5, 110, 25, () => {
                     Layout.sync(); State.contextMenu = null;
-                }, "刷新系统");
+                }, i18n.t('btn_refresh'));
                 UI.regBtn(mx+5, my+35, 110, 25, () => {
                     let pos = Spatial.getSafePosition(mx, my, null); 
                     Layout.data.push({
                         type: 'perm_folder', id: 'pf_' + Date.now(),
-                        name: "永久文件夹", items: [], x: pos.x, y: pos.y
+                        nameKey: '永久文件夹', name: "永久文件夹", items: [], x: pos.x, y: pos.y
                     });
                     Layout.save(); State.contextMenu = null;
-                }, "新建永久夹");
+                }, i18n.t('btn_new_perm'));
             } else if (State.contextMenu.target.type.includes('folder')) {
                 UI.regBtn(mx+5, my+5, 110, 30, () => {
                     let folder = State.contextMenu.target;
@@ -578,12 +699,10 @@ const UI = {
                         if (!appId.startsWith('sys_')) VFS.removeApp(appId);
                     });
                     Layout.data = Layout.data.filter(i => i.id !== folder.id);
-                    State.contextMenu = null;
-                    Layout.sync();
-                }, "强力删除");
+                    State.contextMenu = null; Layout.sync();
+                }, i18n.t('btn_force_del'));
             }
         }
-
         requestAnimationFrame(UI.loop);
     }
 };

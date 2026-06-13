@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SketchFlow</title>
+    <style>
+        :root { --toolbar-height: auto; } /* 修改为自适应高度 */
+        body, html { margin: 0; padding: 0; width: 100%; height: 100dvh; overflow: hidden; background-color: #f0f0f0; touch-action: none; font-family: sans-serif; }
+        
+        #toolbar {
+            position: fixed; top: 0; left: 0; right: 0; padding: 10px;
+            background: #fff; display: flex; align-items: center; justify-content: center;
+            gap: 10px; flex-wrap: wrap; /* 关键修复：防止按钮被挤走 */
+            border-bottom: 1px solid #ccc; z-index: 100;
+        }
+        
+        #canvas-container { position: relative; width: 100%; height: 100%; padding-top: 60px; box-sizing: border-box;}
+        canvas { position: absolute; top: 60px; left: 0; width: 100%; height: calc(100% - 60px); touch-action: none; }
+        
+        #orientation-warning {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); color: white; display: none;
+            flex-direction: column; align-items: center; justify-content: center; z-index: 999;
+        }
+
+        button { padding: 8px 12px; cursor: pointer; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; }
+        .active { background: #007bff; color: white; }
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <button id="toolBtn" onclick="toggleEraser()">Pen</button>
+    <button id="layerBtn" onclick="toggleLayer()" class="active">Layer 1</button>
+    <button id="bgBtn" onclick="toggleBackground()">Bg: White</button>
+    <input type="color" id="colorPicker" value="#000000">
+    <input type="range" id="sizePicker" min="1" max="20" value="2">
+    <button onclick="clearCanvas()">Clear</button>
+    <button onclick="saveImage()" style="background:#28a745; color:white;">Export</button>
+</div>
+
+<div id="canvas-container">
+    <canvas id="layer1"></canvas>
+    <canvas id="layer2"></canvas>
+</div>
+
+<div id="orientation-warning">
+    <h2>Landscape Mode Disabled</h2>
+    <p>Please rotate your device back to Portrait to continue.</p>
+</div>
+
+<script>
+    const container = document.getElementById('canvas-container');
+    const layers = [document.getElementById('layer1'), document.getElementById('layer2')];
+    const ctxs = layers.map(c => c.getContext('2d'));
+    
+    let activeLayerIndex = 0;
+    let isEraser = false;
+    let isDrawing = false;
+    let isTransparent = false;
+
+    function resizeCanvases() {
+        const width = window.innerWidth;
+        const height = window.innerHeight - 60;
+        const data = layers.map(c => c.toDataURL());
+        
+        layers.forEach((c, i) => {
+            c.width = width; c.height = height;
+            ctxs[i].lineCap = 'round'; ctxs[i].lineJoin = 'round';
+            const img = new Image();
+            img.onload = () => ctxs[i].drawImage(img, 0, 0);
+            img.src = data[i];
+        });
+    }
+
+    function checkOrientation() {
+        const warning = document.getElementById('orientation-warning');
+        if (window.innerWidth > window.innerHeight) { warning.style.display = 'flex'; } 
+        else { warning.style.display = 'none'; resizeCanvases(); }
+    }
+
+    window.addEventListener('resize', checkOrientation);
+    checkOrientation();
+
+    function toggleEraser() {
+        isEraser = !isEraser;
+        document.getElementById('toolBtn').innerText = isEraser ? 'Eraser' : 'Pen';
+        document.getElementById('toolBtn').className = isEraser ? 'active' : '';
+    }
+
+    function toggleBackground() {
+        isTransparent = !isTransparent;
+        document.getElementById('bgBtn').innerText = isTransparent ? 'Bg: Transparent' : 'Bg: White';
+    }
+
+    function toggleLayer() {
+        activeLayerIndex = activeLayerIndex === 0 ? 1 : 0;
+        document.getElementById('layerBtn').innerText = `Layer ${activeLayerIndex + 1}`;
+    }
+
+    function getPos(e) {
+        const rect = layers[activeLayerIndex].getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function startDrawing(e) {
+        isDrawing = true;
+        const ctx = ctxs[activeLayerIndex];
+        ctx.beginPath();
+        const pos = getPos(e);
+        ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        const ctx = ctxs[activeLayerIndex];
+        ctx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
+        ctx.lineWidth = document.getElementById('sizePicker').value;
+        ctx.strokeStyle = document.getElementById('colorPicker').value;
+        const pos = getPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+    }
+
+    function stopDrawing() {
+        if (isDrawing) {
+            isDrawing = false;
+            localStorage.setItem('layer1', layers[0].toDataURL());
+            localStorage.setItem('layer2', layers[1].toDataURL());
+        }
+    }
+
+    layers.forEach(canvas => {
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
+        canvas.addEventListener('touchend', stopDrawing);
+    });
+
+    function clearCanvas() {
+        ctxs[activeLayerIndex].clearRect(0, 0, layers[activeLayerIndex].width, layers[activeLayerIndex].height);
+        stopDrawing();
+    }
+
+    function saveImage() {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = layers[0].width;
+        tempCanvas.height = layers[0].height;
+        const tCtx = tempCanvas.getContext('2d');
+        
+        // 核心修复：如果不是透明背景，手动绘制一层白色
+        if (!isTransparent) {
+            tCtx.fillStyle = '#ffffff';
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        }
+        
+        layers.forEach(c => tCtx.drawImage(c, 0, 0));
+        
+        const link = document.createElement('a');
+        link.download = 'my-sketchflow.png';
+        link.href = tempCanvas.toDataURL('image/png');
+        link.click();
+    }
+
+    window.onload = () => {
+        ['layer1', 'layer2'].forEach((key, i) => {
+            const data = localStorage.getItem(key);
+            if (data) {
+                const img = new Image();
+                img.onload = () => ctxs[i].drawImage(img, 0, 0);
+                img.src = data;
+            }
+        });
+    };
+</script>
+
+</body>
+</html>

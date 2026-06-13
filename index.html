@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>2D我的世界 - 完美多存档终极版</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0; padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+            overflow: hidden;
+            background-color: #000;
+            font-family: "Courier New", monospace, "Microsoft YaHei";
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #gameContainer {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #1a1a1a;
+            overflow: hidden;
+        }
+
+        canvas {
+            background: #87c1e9;
+            box-shadow: 0 0 30px rgba(0,0,0,0.7);
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        
+        /* 游戏主菜单界面层 */
+        #mainMenu {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><rect width="60" height="60" fill="%234a2711"/><rect width="60" height="10" fill="%235c8e32"/></svg>');
+            background-size: 60px 60px;
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+        .menu-title {
+            font-size: 32px;
+            text-shadow: 3px 3px 0px #222;
+            margin-bottom: 30px;
+            color: #f1c40f;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        .slot-container {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .slot-row {
+            background: rgba(40, 40, 40, 0.9);
+            border: 3px solid #555;
+            padding: 10px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .slot-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .slot-name { font-weight: bold; font-size: 14px; color: #fff; }
+        .slot-status { font-size: 11px; color: #aaa; }
+        .menu-btn {
+            background: #27ae60;
+            border: 2px solid #2ecc71;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .menu-btn:active { background: #2ecc71; }
+        .menu-btn.del { background: #c0392b; border-color: #e74c3c; }
+        .menu-btn.del:active { background: #e74c3c; }
+
+        /* HUD 血量区与返回菜单 */
+        .game-hud-box {
+            position: absolute;
+            top: calc(12px + env(safe-area-inset-top));
+            left: calc(12px + env(safe-area-inset-left));
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+        .game-hud {
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #555;
+            padding: 6px 12px;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+        }
+        #hp-slot { color: #ff3344; letter-spacing: 1px; margin-left: 4px; }
+
+        /* 顶部右侧控制按钮组 */
+        .top-controls {
+            position: absolute;
+            top: calc(12px + env(safe-area-inset-top));
+            right: calc(12px + env(safe-area-inset-right));
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+        .action-btn {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #666;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .action-btn:active { background: #fff; color: #000; }
+        #btn-mode-toggle { background: #d35400; border-color: #e67e22; }
+        #btn-fullscreen { background: #27ae60; border-color: #2ecc71; }
+
+        /* 屏幕正下方经典快捷栏 (Hotbar) */
+        .hotbar-container {
+            position: absolute;
+            bottom: calc(12px + env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            background: rgba(40, 40, 40, 0.85);
+            border: 3px solid #555;
+            padding: 4px;
+            border-radius: 6px;
+            gap: 5px;
+            z-index: 100;
+        }
+        .hotbar-slot {
+            width: 46px;
+            height: 46px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid #444;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            cursor: pointer;
+        }
+        .hotbar-slot.active {
+            border-color: #f1c40f;
+            background: rgba(241, 196, 15, 0.2);
+            box-shadow: inset 0 0 8px #f1c40f;
+        }
+        .slot-block-view { width: 18px; height: 18px; margin-bottom: 2px; }
+        .slot-count { font-size: 10px; color: #fff; font-weight: bold; }
+        .slot-key { position: absolute; top: 1px; left: 3px; font-size: 9px; color: #888; }
+
+        /* 移动端方向跳跃虚拟键 */
+        .mobile-joystick {
+            position: absolute;
+            width: 100%; height: 100%;
+            top: 0; left: 0;
+            pointer-events: none;
+            z-index: 90;
+        }
+        .touch-pad {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.45);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            pointer-events: auto;
+            touch-action: none;
+        }
+        .touch-pad:active { background: rgba(255, 255, 255, 0.25); }
+        #m-left { bottom: 20px; left: calc(15px + env(safe-area-inset-left)); width: 65px; height: 65px; font-size: 22px; }
+        #m-right { bottom: 20px; left: calc(90px + env(safe-area-inset-left)); width: 65px; height: 65px; font-size: 22px; }
+        #m-jump { bottom: 20px; right: calc(15px + env(safe-area-inset-right)); width: 85px; height: 65px; font-size: 15px; }
+
+        /* 大型综合【背包与合成系统】大型主弹窗 */
+        #inventoryModal {
+            display: none;
+            position: absolute;
+            width: 80%;
+            height: 75%;
+            background: rgba(25, 25, 25, 0.98);
+            border: 3px solid #666;
+            border-radius: 10px;
+            z-index: 200;
+            color: white;
+            padding: 15px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+        }
+        .modal-body { display: flex; width: 100%; height: calc(100% - 40px); margin-top: 10px; gap: 15px; }
+        .pane-left, .pane-right { width: 50%; height: 100%; background: #1f1f1f; border: 2px solid #333; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; }
+        .pane-title { font-size: 14px; color: #f1c40f; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+        .grid-scroll { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 8px; }
+        
+        .inv-item-card {
+            background: #282828; border: 2px solid #444; border-radius: 5px; padding: 6px; text-align: center; cursor: pointer;
+        }
+        .inv-item-card:hover { border-color: #3498db; background: #333; }
+        
+        .recipe-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .recipe-card {
+            background: #2a2a2a; border: 1px solid #444; border-radius: 5px; padding: 8px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .craft-btn { background: #27ae60; border: none; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold;}
+        .craft-btn:active { background: #2ecc71; }
+
+        /* 顶部中央动态提示栏 */
+        #game-notifier {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(41, 128, 185, 0.9); color: white; padding: 5px 15px;
+            border-radius: 20px; font-size: 12px; display: none; z-index: 150; pointer-events: none;
+        }
+
+        /* 动态竖屏智能拦截阻断层 */
+        #orientation-blocker {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #141414; color: #fff; z-index: 99999;
+            flex-direction: column; justify-content: center; align-items: center; text-align: center;
+        }
+
+        /* 新增：冷启动游戏教程引导弹窗 */
+        #tutorialModal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); z-index: 600;
+            display: flex; justify-content: center; align-items: center; color: white;
+        }
+        .tutorial-card {
+            background: #222; border: 3px solid #f1c40f; border-radius: 10px;
+            width: 420px; max-width: 90%; padding: 20px; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        }
+        .tut-title { font-size: 18px; color: #f1c40f; font-weight: bold; margin-bottom: 15px; }
+        .tut-list { text-align: left; font-size: 13px; line-height: 1.8; color: #ddd; margin-bottom: 18px; }
+        .tut-btn {
+            background: #f1c40f; border: none; color: #000; padding: 8px 25px;
+            border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 13px;
+        }
+        .tut-btn:active { background: #f39c12; }
+    </style>
+</head>
+<body>
+
+    <div id="orientation-blocker">
+        <div style="font-size: 50px; margin-bottom: 10px;">🔄</div>
+        <div style="font-weight: bold; font-size: 18px; color:#e74c3c; margin-bottom: 5px;">竖屏不能用了！</div>
+        <div style="color: #999; font-size: 13px;">请解锁手机转向锁，并将屏幕横过来玩耍</div>
+    </div>
+
+    <div id="gameContainer">
+        
+        <div id="tutorialModal">
+            <div class="tutorial-card">
+                <div class="tut-title">⚔️ 像素大冒险 - 操作控制指南 ⚔️</div>
+                <div class="tut-list">
+                    <b>💻 电脑端（PC键位提示）：</b><br>
+                    • 左右移动：按 <b>A / D 键</b> 或方向键<br>
+                    • 角色跳跃：按 <b>W 键 / 空格键</b><br>
+                    • 切换破坏/建筑模式：按 <b>R 键</b><br>
+                    • 打开/关闭背包合成：按 <b>E 键</b><br>
+                    • 快捷菜单栏精选：数字键 <b>1 ~ 5</b> 一键秒切<br>
+                    • <b>🪓 核心开采规则：方块必须点击 2 次才能破坏！</b><br><br>
+                    <b>📱 手机端：</b>直接触控屏幕左下角和右下角的虚拟按键即可。
+                </div>
+                <button class="tut-btn" id="btn-close-tut">我知道了 (今日开启)</button>
+            </div>
+        </div>
+
+        <div id="mainMenu">
+            <div class="menu-title">MINECRAFT 2D</div>
+            <div class="slot-container" id="menuSlotList">
+                </div>
+        </div>
+
+        <div class="game-hud-box">
+            <button id="btn-quit-game" class="action-btn" style="background:#c0392b; border-color:#e74c3c;">保存并退出 (ESC)</button>
+            <div class="game-hud">生命值:<span id="hp-slot">❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️</span></div>
+        </div>
+
+        <div id="game-notifier">提示</div>
+
+        <div class="top-controls">
+            <button id="btn-fullscreen" class="action-btn">全屏游戏 (F)</button>
+            <button id="btn-mode-toggle" class="action-btn">当前模式: 破坏 (R)</button>
+            <button id="btn-bag-toggle" class="action-btn" style="background:#8e44ad; border-color:#9b59b6;">背包/合成 (E)</button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="hotbar-container" id="hotbarUI"></div>
+        
+        <div class="mobile-joystick">
+            <div id="m-left" class="touch-pad">◀</div>
+            <div id="m-right" class="touch-pad">▶</div>
+            <div id="m-jump" class="touch-pad">跳跃</div>
+        </div>
+
+        <div id="inventoryModal">
+            <div style="display: flex; justify-content: space-between; align-items: center; height: 30px;">
+                <h3 style="font-size: 15px; color: #f39c12;">🎒 储藏背包与手工合成台</h3>
+                <button id="btn-close-modal" style="background: #e74c3c; border: none; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">返回游戏 (E)</button>
+            </div>
+            <div class="modal-body">
+                <div class="pane-left">
+                    <div class="pane-title">点击物品装备到当前快捷栏格 (快捷键1-5)</div>
+                    <div class="grid-scroll" id="bagGrid"></div>
+                </div>
+                <div class="pane-right">
+                    <div class="pane-title">简易合成配方列表</div>
+                    <div class="recipe-list" id="recipeGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // === 核心数据结构：多存档及当前游玩状态管理 ===
+    let currentSlotId = null; // 当前正在游玩的存档 ID (1, 2, 3)
+    let blockDamageCache = {}; // 记录方块被点击的次数数据缓存 (坐标: 点击数)
+    let gameRunning = false;  // 控制物理回路是否开始运作
+
+    // 基础世界数据空壳框架
+    let inventory = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
+    let currentMode = 'MINE'; 
+    let hotbarSlots = [1, 2, 3, 4, 10]; 
+    let activeHotbarIdx = 0; 
+    let worldCache = {};
+    let worldSeed = Math.random() * 8000;
+    
+    let camera = { x: 0, y: 0 };
+    let player = {
+        x: 0, y: 0, width: 18, height: 42,
+        vx: 0, vy: 0, speed: 3.5, jumpForce: -8.0, gravity: 0.38,
+        isGrounded: false
+    };
+
+    // === 核心升级：LocalStorage 数据的实时存取引擎 ===
+    function saveCurrentGameToStorage() {
+        if (!currentSlotId) return;
+        const saveData = {
+            inventory: inventory,
+            currentMode: currentMode,
+            hotbarSlots: hotbarSlots,
+            activeHotbarIdx: activeHotbarIdx,
+            worldCache: worldCache,
+            worldSeed: worldSeed,
+            player: { x: player.x, y: player.y }
+        };
+        localStorage.setItem(`mc_2d_slot_${currentSlotId}`, JSON.stringify(saveData));
+    }
+
+    function loadGameFromStorage(slotId) {
+        const raw = localStorage.getItem(`mc_2d_slot_${slotId}`);
+        currentSlotId = slotId;
+        blockDamageCache = {}; // 载入新存档时清空旧方块受损状态
+
+        if (raw) {
+            try {
+                const data = JSON.parse(raw);
+                inventory = data.inventory || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
+                currentMode = data.currentMode || 'MINE';
+                hotbarSlots = data.hotbarSlots || [1, 2, 3, 4, 10];
+                activeHotbarIdx = data.activeHotbarIdx !== undefined ? data.activeHotbarIdx : 0;
+                worldCache = data.worldCache || {};
+                worldSeed = data.worldSeed || Math.random() * 8000;
+                player.x = data.player ? data.player.x : 0;
+                player.y = data.player ? data.player.y : 0;
+                
+                // 根据读取的模式去同步刷新按钮状态文字
+                syncModeButtonUI();
+                showNotify(`💾 成功载入存档 ${slotId}，继续冒险！`);
+            } catch (e) {
+                console.error("数据破损，执行初始化新世界");
+                createNewWorldData();
+            }
+        } else {
+            createNewWorldData();
+            showNotify(`✨ 新存档 ${slotId} 创建完毕！`);
+        }
+
+        // 关闭主菜单，激活游戏状态
+        document.getElementById('mainMenu').style.display = 'none';
+        refreshHotbarUI();
+        gameRunning = true;
+    }
+
+    function createNewWorldData() {
+        inventory = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
+        currentMode = 'MINE';
+        hotbarSlots = [1, 2, 3, 4, 10];
+        activeHotbarIdx = 0;
+        worldCache = {};
+        worldSeed = Math.random() * 8000;
+        syncModeButtonUI();
+        initPlayer();
+        saveCurrentGameToStorage();
+    }
+
+    function deleteGameSlot(slotId, event) {
+        event.stopPropagation(); // 阻止触发卡片整行的加载点击事件
+        if (confirm(`⚠️ 确定要彻底删除存档 ${slotId} 吗？此操作无法撤销！`)) {
+            localStorage.removeItem(`mc_2d_slot_${slotId}`);
+            renderMenuSlotsUI();
+        }
+    }
+
+    function renderMenuSlotsUI() {
+        const container = document.getElementById('menuSlotList');
+        container.innerHTML = '';
+        for (let i = 1; i <= 3; i++) {
+            const raw = localStorage.getItem(`mc_2d_slot_${i}`);
+            let hasData = false;
+            let detailStr = "空白世界的全新档案";
+            
+            if (raw) {
+                try {
+                    const d = JSON.parse(raw);
+                    hasData = true;
+                    // 计算拥有的方块总数
+                    let totalItems = 0;
+                    for(let k in d.inventory) totalItems += d.inventory[k];
+                    detailStr = `物资储备: ${totalItems} 个方块`;
+                } catch(e){}
+            }
+
+            const row = document.createElement('div');
+            row.className = 'slot-row';
+            row.innerHTML = `
+                <div class="slot-info">
+                    <div class="slot-name">🌍 冒险世界 0${i}</div>
+                    <div class="slot-status">${detailStr}</div>
+                </div>
+                <div>
+                    <button class="menu-btn" onclick="loadGameFromStorage(${i})">${hasData ? '读取进度' : '创建世界'}</button>
+                    ${hasData ? `<button class="menu-btn del" style="margin-left:5px;" onclick="deleteGameSlot(${i}, event)">删除</button>` : ''}
+                </div>
+            `;
+            container.appendChild(row);
+        }
+    }
+
+    // 返回主菜单触发器
+    function quitToMainMenu() {
+        if(gameRunning) {
+            saveCurrentGameToStorage();
+            gameRunning = false;
+            document.getElementById('inventoryModal').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'flex';
+            renderMenuSlotsUI();
+            showNotify("💾 已保存进度并安全退出游戏");
+        }
+    }
+    document.getElementById('btn-quit-game').addEventListener('click', quitToMainMenu);
+
+    // === 极致敏感的动态横竖屏探测处理 ===
+    function checkScreenOrientation() {
+        const blocker = document.getElementById('orientation-blocker');
+        if (window.innerHeight > window.innerWidth) {
+            blocker.style.display = 'flex';
+        } else {
+            blocker.style.display = 'none';
+        }
+    }
+    window.addEventListener('resize', checkScreenOrientation);
+    window.addEventListener('load', checkScreenOrientation);
+    checkScreenOrientation();
+
+    // 首次进入强制弹窗操作教程处理
+    document.getElementById('btn-close-tut').addEventListener('click', () => {
+        document.getElementById('tutorialModal').style.display = 'none';
+        renderMenuSlotsUI(); // 教程关掉后刷新并渲染主菜单
+    });
+
+    // 全屏切换功能
+    const gameContainerElement = document.getElementById('gameContainer');
+    document.getElementById('btn-fullscreen').addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            gameContainerElement.requestFullscreen().catch(err => {
+                alert("全屏唤醒失败，请手动缩放浏览器视图");
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    });
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const V_WIDTH = 960;
+    const V_HEIGHT = 540;
+    canvas.width = V_WIDTH;
+    canvas.height = V_HEIGHT;
+
+    const BLOCK_SIZE = 30;
+
+    const BLOCK_INFO = {
+        0: { name: '空气', color: null },
+        1: { name: '草方块', color: '#5c8e32', shadow: '#4d7a27' },
+        2: { name: '泥土', color: '#866043' },
+        3: { name: '石头', color: '#7b7b7b' },
+        4: { name: '橡木', color: '#634427' },
+        5: { name: '树叶', color: '#315e24' },
+        6: { name: '煤炭矿', color: '#616161', dot: '#1c1c1c' },
+        7: { name: '铁矿石', color: '#696969', dot: '#d39e72' },
+        8: { name: '金矿石', color: '#595959', dot: '#f1c40f' },
+        9: { name: '钻石矿', color: '#555555', dot: '#5dade2' },
+        10: { name: '木板', color: '#b8860b' }
+    };
+
+    const CRAFT_RECIPES = [
+        { id: 1, name: '加工木板', costId: 4, costNum: 1, rewardId: 10, rewardNum: 4 },
+        { id: 2, name: '泥土压砖', costId: 2, costNum: 3, rewardId: 3, rewardNum: 1 },
+        { id: 3, name: '树叶堆草', costId: 5, costNum: 4, rewardId: 1, rewardNum: 1 }
+    ];
+
+    // 地形波浪形生成计算器
+    function getGroundRow(c) {
+        let noise = Math.sin(c * 0.13 + worldSeed) * 2 + Math.cos(c * 0.05 + worldSeed * 1.2) * 3.5;
+        return Math.floor(13 + noise);
+    }
+    function isTreeSpot(c) {
+        if (Math.abs(c) < 4) return false;
+        let s = Math.sin(c * 2345.6 + worldSeed);
+        return (s - Math.floor(s)) < 0.07;
+    }
+
+    // 地图自然生态块判定器
+    function getBlock(row, col) {
+        if (row < 0) return 0;
+        const key = `${row},${col}`;
+        if (worldCache[key] !== undefined) return worldCache[key];
+
+        for (let dc = -2; dc <= 2; dc++) {
+            let tc = col + dc;
+            if (isTreeSpot(tc)) {
+                let gR = getGroundRow(tc);
+                if (dc === 0 && row >= gR - 4 && row < gR) return 4; 
+                if (row >= gR - 5 && row <= gR - 5 && Math.abs(dc) <= 1) return 5;
+                if (row === gR - 6 && dc === 0) return 5;
+            }
+        }
+
+        let gRow = getGroundRow(col);
+        if (row < gRow) return 0;
+        if (row === gRow) return 1;
+        if (row > gRow && row <= gRow + 3) return 2;
+
+        let s = Math.sin(row * 11.2 + col * 83.7 + worldSeed);
+        let rand = s - Math.floor(s);
+        let depth = row - gRow;
+        if (depth > 18 && rand < 0.04) return 9;
+        if (depth > 12 && rand < 0.06) return 8;
+        if (depth > 6 && rand < 0.11) return 7;
+        if (depth > 2 && rand < 0.16) return 6;
+
+        return 3; 
+    }
+
+    function initPlayer() {
+        let sc = Math.floor(Math.random() * 10);
+        player.x = sc * BLOCK_SIZE;
+        player.y = (getGroundRow(sc) - 4) * BLOCK_SIZE;
+    }
+
+    let keys = { left: false, right: false, jump: false };
+    let mouseX = -100, mouseY = -100;
+    let isMouseIn = false;
+
+    function showNotify(msg) {
+        const bar = document.getElementById('game-notifier');
+        bar.innerText = msg; bar.style.display = 'block';
+        clearTimeout(window.notifTimer);
+        window.notifTimer = setTimeout(() => bar.style.display = 'none', 2000);
+    }
+
+    function calcCanvasCoords(cx, cy) {
+        const r = canvas.getBoundingClientRect();
+        mouseX = (cx - r.left) * (V_WIDTH / r.width);
+        mouseY = (cy - r.top) * (V_HEIGHT / r.height);
+    }
+
+    // 动态快捷菜单栏渲染更新
+    function refreshHotbarUI() {
+        const hotbar = document.getElementById('hotbarUI');
+        hotbar.innerHTML = '';
+        for (let i = 0; i < 5; i++) {
+            let bId = hotbarSlots[i];
+            let count = inventory[bId] || 0;
+            let info = BLOCK_INFO[bId];
+
+            let slot = document.createElement('div');
+            slot.className = `hotbar-slot ${i === activeHotbarIdx ? 'active' : ''}`;
+            
+            let blockColor = info.dot || info.color || '#444';
+            slot.innerHTML = `
+                <span class="slot-key">${i+1}</span>
+                <div class="slot-block-view" style="background:${bId !== 0 ? blockColor : 'transparent'}"></div>
+                <span class="slot-count">${bId !== 0 ? count : ''}</span>
+            `;
+
+            slot.onclick = () => {
+                activeHotbarIdx = i;
+                refreshHotbarUI();
+                saveCurrentGameToStorage();
+            };
+            hotbar.appendChild(slot);
+        }
+    }
+
+    // 动态同步更新背包
+    function refreshBagUI() {
+        const grid = document.getElementById('bagGrid');
+        grid.innerHTML = '';
+        for (let id in BLOCK_INFO) {
+            let bId = parseInt(id);
+            if (bId === 0) continue;
+            let card = document.createElement('div');
+            card.className = 'inv-item-card';
+            let color = BLOCK_INFO[bId].dot || BLOCK_INFO[bId].color;
+            card.innerHTML = `
+                <div style="width:20px;height:20px;background:${color};margin:0 auto 4px auto;border:1px solid #555;"></div>
+                <div style="font-size:11px;font-weight:bold;">${BLOCK_INFO[bId].name}</div>
+                <div style="font-size:10px;color:#f1c40f;margin-top:2px;">存量: ${inventory[bId]}</div>
+            `;
+            card.onclick = () => {
+                hotbarSlots[activeHotbarIdx] = bId;
+                showNotify(`📥 已将 [${BLOCK_INFO[bId].name}] 装备至快捷栏第 ${activeHotbarIdx + 1} 格`);
+                refreshHotbarUI();
+                refreshBagUI();
+                saveCurrentGameToStorage();
+            };
+            grid.appendChild(card);
+        }
+    }
+
+    // 动态绘制合成配方进度
+    function refreshRecipesUI() {
+        const grid = document.getElementById('recipeGrid');
+        grid.innerHTML = '';
+        CRAFT_RECIPES.forEach(r => {
+            let costName = BLOCK_INFO[r.costId].name;
+            let rewardName = BLOCK_INFO[r.rewardId].name;
+            
+            let card = document.createElement('div');
+            card.className = 'recipe-card';
+            card.innerHTML = `
+                <div style="font-size:11px;">
+                    <b style="color:#2ecc71;">${r.name}</b><br>
+                    <span style="color:#aaa;">消耗:${r.costNum}个${costName} ➔ 产出:${r.rewardNum}个${rewardName}</span>
+                </div>
+            `;
+
+            let btn = document.createElement('button');
+            btn.className = 'craft-btn';
+            btn.innerText = '合成';
+            btn.onclick = () => {
+                if ((inventory[r.costId] || 0) < r.costNum) {
+                    showNotify(`❌ 材料不足！缺少 [${costName}]`);
+                    return;
+                }
+                inventory[r.costId] -= r.costNum;
+                inventory[r.rewardId] = (inventory[r.rewardId] || 0) + r.rewardNum;
+                showNotify(`🔨 成功合成了 ${r.rewardNum} 个 [${rewardName}]`);
+                refreshBagUI();
+                refreshHotbarUI();
+                saveCurrentGameToStorage();
+            };
+            card.appendChild(btn);
+            grid.appendChild(card);
+        });
+    }
+
+    // 背包模态框联动
+    const modal = document.getElementById('inventoryModal');
+    function toggleBagModal() {
+        if(!gameRunning) return;
+        if (modal.style.display === 'block') {
+            modal.style.display = 'none';
+        } else {
+            modal.style.display = 'block';
+            refreshBagUI();
+            refreshRecipesUI();
+        }
+    }
+    document.getElementById('btn-bag-toggle').addEventListener('click', toggleBagModal);
+    document.getElementById('btn-close-modal').addEventListener('click', () => modal.style.display = 'none');
+
+    // 模式切换辅助函数
+    function syncModeButtonUI() {
+        const btn = document.getElementById('btn-mode-toggle');
+        if (currentMode === 'MINE') {
+            btn.innerText = "当前模式: 破坏 (R)";
+            btn.style.background = "#d35400";
+            btn.style.borderColor = "#e67e22";
+        } else {
+            btn.innerText = "当前模式: 建筑 (R)";
+            btn.style.background = "#2980b9";
+            btn.style.borderColor = "#3498db";
+        }
+    }
+
+    function toggleGameMode() {
+        if(!gameRunning) return;
+        if (currentMode === 'MINE') {
+            currentMode = 'BUILD';
+            showNotify("🔮 已切换至 [建筑模式]：轻触空白处放置快捷栏方块");
+        } else {
+            currentMode = 'MINE';
+            showNotify("🪓 已切换至 [破坏模式]：方块需要点击 2 次才能敲碎开采");
+        }
+        syncModeButtonUI();
+        saveCurrentGameToStorage();
+    }
+    document.getElementById('btn-mode-toggle').addEventListener('click', toggleGameMode);
+
+    // PC 键盘高集成度按键侦听器
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') { quitToMainMenu(); }
+        if (!gameRunning) return;
+
+        if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+        if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+        if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') { keys.jump = true; e.preventDefault(); }
+        
+        if (e.code === 'KeyE') { toggleBagModal(); e.preventDefault(); }
+        if (e.code === 'KeyR') { toggleGameMode(); }
+        
+        if (['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].includes(e.code)) {
+            activeHotbarIdx = parseInt(e.code.replace('Digit', '')) - 1;
+            refreshHotbarUI();
+            saveCurrentGameToStorage();
+        }
+    });
+    window.addEventListener('keyup', (e) => {
+        if (!gameRunning) return;
+        if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+        if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+        if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') keys.jump = false;
+    });
+
+    canvas.addEventListener('mousemove', (e) => { isMouseIn = true; calcCanvasCoords(e.clientX, e.clientY); });
+    canvas.addEventListener('mouseleave', () => isMouseIn = false);
+
+    // === 核心交互：单点触控破坏（需击打两次）/ 建筑一体化机制 ===
+    function handleScreenInteraction(sx, sy) {
+        if(!gameRunning) return;
+
+        let gx = sx + camera.x;
+        let gy = sy + camera.y;
+
+        let col = Math.floor(gx / BLOCK_SIZE);
+        let row = Math.floor(gy / BLOCK_SIZE);
+        if (row < 0) return;
+
+        let currentBlock = getBlock(row, col);
+        const coordKey = `${row},${col}`;
+
+        if (currentMode === 'MINE') {
+            // == 破坏模式：必须成功点击 2 次才能真正摧毁自然方块 ==
+            if (currentBlock !== 0) {
+                // 如果之前没砸过这块，或者隔太久，初始化点击计数
+                if (!blockDamageCache[coordKey]) {
+                    blockDamageCache[coordKey] = 0;
+                }
+                
+                blockDamageCache[coordKey]++; // 累加打击次数
+
+                if (blockDamageCache[coordKey] < 2) {
+                    // 第一枪：产生少量裂纹受损碎屑反馈，不入包
+                    createExplosionEffects(col * BLOCK_SIZE + 15, row * BLOCK_SIZE + 15, '#333333');
+                    showNotify("🪓 方块已松动，再次点击彻底破坏！");
+                } else {
+                    // 第二枪：彻底破裂碎掉，入库背包，清空缓存
+                    inventory[currentBlock] = (inventory[currentBlock] || 0) + 1;
+                    worldCache[coordKey] = 0; 
+                    delete blockDamageCache[coordKey];
+                    
+                    createExplosionEffects(col * BLOCK_SIZE + 15, row * BLOCK_SIZE + 15, BLOCK_INFO[currentBlock].color);
+                    refreshHotbarUI();
+                    saveCurrentGameToStorage(); // 触发实时自动保存
+                }
+            }
+        } else {
+            // == 建筑模式：直接放置，点击 1 次就可以放置 ==
+            if (currentBlock === 0) {
+                let targetId = hotbarSlots[activeHotbarIdx];
+                if (targetId === 0 || (inventory[targetId] || 0) <= 0) {
+                    showNotify(`❌ 选中的 [${BLOCK_INFO[targetId]?.name || '物品'}] 没存货了！请先开采！`);
+                    return;
+                }
+
+                let bLeft = col * BLOCK_SIZE;
+                let bRight = bLeft + BLOCK_SIZE;
+                let bTop = row * BLOCK_SIZE;
+                let bBottom = bTop + BLOCK_SIZE;
+                if (player.x < bRight && player.x + player.width > bLeft && player.y < bBottom && player.y + player.height > bTop) {
+                    showNotify("❌ 别把方块往自己身体里塞嘛！");
+                    return;
+                }
+
+                inventory[targetId]--;
+                worldCache[coordKey] = targetId;
+                
+                // 如果之前在这个位置有残留的破坏记录，顺手擦除
+                if(blockDamageCache[coordKey]) delete blockDamageCache[coordKey];
+
+                refreshHotbarUI();
+                saveCurrentGameToStorage(); // 触发实时自动保存
+            }
+        }
+    }
+
+    canvas.addEventListener('mousedown', (e) => { if(e.button === 0) handleScreenInteraction(mouseX, mouseY); });
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault(); isMouseIn = true;
+        const t = e.touches[0]; calcCanvasCoords(t.clientX, t.clientY);
+        handleScreenInteraction(mouseX, mouseY);
+    }, { passive: false });
+
+    function bindTouchAction(id, actionKey) {
+        const dom = document.getElementById(id);
+        dom.addEventListener('touchstart', (e) => { e.preventDefault(); keys[actionKey] = true; }, { passive: false });
+        dom.addEventListener('touchend', (e) => { e.preventDefault(); keys[actionKey] = false; }, { passive: false });
+    }
+    bindTouchAction('m-left', 'left');
+    bindTouchAction('m-right', 'right');
+    bindTouchAction('m-jump', 'jump');
+
+    // 烟雾特效
+    let dynamicParticles = [];
+    function createExplosionEffects(x, y, color) {
+        for(let i=0; i<6; i++) {
+            dynamicParticles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4 - 2,
+                size: Math.random() * 3 + 2, life: 14, color: color || '#fff'
+            });
+        }
+    }
+
+    function parseMapCollisions(px, py, w, h) {
+        let lC = Math.floor(px / BLOCK_SIZE);
+        let rC = Math.floor((px + w - 0.1) / BLOCK_SIZE);
+        let tR = Math.floor(py / BLOCK_SIZE);
+        let bR = Math.floor((py + h - 0.1) / BLOCK_SIZE);
+        
+        let hits = [];
+        for (let r = tR; r <= bR; r++) {
+            for (let c = lC; c <= rC; c++) {
+                if (r >= 0 && getBlock(r, c) !== 0) {
+                    hits.push({ x: c * BLOCK_SIZE, y: r * BLOCK_SIZE });
+                }
+            }
+        }
+        return hits;
+    }
+
+    function tickGamePhysics() {
+        if (!gameRunning) return;
+
+        player.vy += player.gravity;
+        if (player.vy > 12) player.vy = 12;
+
+        if (keys.left) player.vx = -player.speed;
+        else if (keys.right) player.vx = player.speed;
+        else player.vx = 0;
+
+        if (keys.jump && player.isGrounded) { player.vy = player.jumpForce; player.isGrounded = false; }
+
+        player.x += player.vx;
+        let hitsX = parseMapCollisions(player.x, player.y, player.width, player.height);
+        for (let b of hitsX) {
+            if (player.vx > 0) player.x = b.x - player.width;
+            if (player.vx < 0) player.x = b.x + BLOCK_SIZE;
+        }
+
+        player.y += player.vy;
+        player.isGrounded = false;
+        let hitsY = parseMapCollisions(player.x, player.y, player.width, player.height);
+        for (let b of hitsY) {
+            if (player.vy > 0) { player.y = b.y - player.height; player.vy = 0; player.isGrounded = true; }
+            if (player.vy < 0) { player.y = b.y + BLOCK_SIZE; player.vy = 0; }
+        }
+
+        if (player.y > 3000) { player.y = 100; player.vy = 0; }
+
+        camera.x = player.x - V_WIDTH / 2 + player.width / 2;
+        camera.y = player.y - V_HEIGHT / 2 + player.height / 2;
+
+        for(let i = dynamicParticles.length - 1; i >= 0; i--) {
+            let p = dynamicParticles[i];
+            p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
+            if(p.life <= 0) dynamicParticles.splice(i, 1);
+        }
+    }
+
+    function renderMainScene() {
+        ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
+
+        if (!gameRunning) {
+            // 如果处于主菜单未激活状态，给渲染画板做一个深灰底层铺垫
+            ctx.fillStyle = '#111'; ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+            return;
+        }
+
+        ctx.fillStyle = '#87c1e9'; ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+
+        let sCol = Math.floor(camera.x / BLOCK_SIZE) - 1;
+        let eCol = Math.ceil((camera.x + V_WIDTH) / BLOCK_SIZE) + 1;
+        let sRow = Math.floor(camera.y / BLOCK_SIZE) - 1;
+        let eRow = Math.ceil((camera.y + V_HEIGHT) / BLOCK_SIZE) + 1;
+        if(sRow < 0) sRow = 0;
+
+        for (let r = sRow; r <= eRow; r++) {
+            for (let c = sCol; c <= eCol; c++) {
+                let id = getBlock(r, c);
+                if (id !== 0) {
+                    let bX = c * BLOCK_SIZE - camera.x;
+                    let bY = r * BLOCK_SIZE - camera.y;
+
+                    ctx.fillStyle = BLOCK_INFO[id].color;
+                    ctx.fillRect(bX, bY, BLOCK_SIZE, BLOCK_SIZE);
+
+                    if (id === 1) {
+                        ctx.fillStyle = BLOCK_INFO[id].shadow;
+                        ctx.fillRect(bX, bY + 6, BLOCK_SIZE, BLOCK_SIZE - 6);
+                    }
+                    if (BLOCK_INFO[id].dot) {
+                        ctx.fillStyle = BLOCK_INFO[id].dot;
+                        ctx.fillRect(bX + 4, bY + 5, 5, 5);
+                        ctx.fillRect(bX + 18, bY + 14, 6, 4);
+                        ctx.fillRect(bX + 8, bY + 22, 4, 5);
+                    }
+
+                    // 特色：如果方块已经被点击过1次，绘制额外的破坏裂缝阴影丝网视觉效果
+                    if (blockDamageCache[`${r},${c}`] === 1) {
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                        ctx.fillRect(bX + 4, bY + 4, BLOCK_SIZE - 8, BLOCK_SIZE - 8);
+                    }
+
+                    ctx.strokeStyle = 'rgba(0,0,0,0.04)';
+                    ctx.strokeRect(bX, bY, BLOCK_SIZE, BLOCK_SIZE);
+                }
+            }
+        }
+
+        dynamicParticles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x - camera.x, p.y - camera.y, p.size, p.size);
+        });
+
+        let px = player.x - camera.x;
+        let py = player.y - camera.y;
+        ctx.fillStyle = '#3498db'; ctx.fillRect(px, py + 12, player.width, 18); 
+        ctx.fillStyle = '#9b59b6'; ctx.fillRect(px, py + 30, player.width, 12); 
+        ctx.fillStyle = '#f5cba7'; ctx.fillRect(px + 2, py, player.width - 4, 12); 
+        ctx.fillStyle = '#4a2711'; ctx.fillRect(px + 2, py, player.width - 4, 3);   
+
+        if (isMouseIn) {
+            let gx = mouseX + camera.x;
+            let gy = mouseY + camera.y;
+            let mc = Math.floor(gx / BLOCK_SIZE);
+            let mr = Math.floor(gy / BLOCK_SIZE);
+
+            if (mr >= 0) {
+                ctx.strokeStyle = currentMode === 'BUILD' ? '#3498db' : '#e74c3c';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(mc * BLOCK_SIZE - camera.x, mr * BLOCK_SIZE - camera.y, BLOCK_SIZE, BLOCK_SIZE);
+            }
+
+            ctx.strokeStyle = currentMode === 'BUILD' ? '#3498db' : '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(mouseX - 8, mouseY); ctx.lineTo(mouseX + 8, mouseY);
+            ctx.moveTo(mouseX, mouseY - 8); ctx.lineTo(mouseX, mouseY + 8);
+            ctx.stroke();
+        }
+    }
+
+    function coreExecutionLoop() {
+        tickGamePhysics();
+        renderMainScene();
+        requestAnimationFrame(coreExecutionLoop);
+    }
+
+    // 冷启动直接推进引擎回路挂载
+    coreExecutionLoop();
+</script>
+</body>
+</html>

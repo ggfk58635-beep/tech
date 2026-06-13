@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Toolbox</title>
+    <style>
+        :root { --primary: #2980b9; --bg: #f5f7fa; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg); color: #333; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 40px; 
+            padding: 20px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .lang-switch { width: 120px; padding: 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; }
+
+        .tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+        .tool-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 24px; }
+        .tool-card h3 { color: var(--primary); margin-bottom: 10px; }
+        .tool-desc { color: #666; font-size: 0.9rem; margin-bottom: 15px; }
+
+        input, textarea, button { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; }
+        button { background-color: var(--primary); color: #fff; border: none; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: #2471a3; }
+        .result { padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 0.9rem; word-break: break-all; min-height: 40px; margin-top: 10px; color: #555; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1 data-i18n="title">Web Toolbox</h1>
+        <select class="lang-switch" id="langSelect" onchange="updateLanguage(this.value)">
+            <option value="en">English</option>
+            <option value="zh-CN">简体中文</option>
+            <option value="zh-TW">繁體中文</option>
+        </select>
+    </header>
+
+    <div class="tool-grid">
+        <div class="tool-card">
+            <h3 data-i18n="t1_title">String Length</h3>
+            <p class="tool-desc" data-i18n="t1_desc">Calculate text length</p>
+            <textarea id="strInput" rows="2" data-i18n-placeholder="input_text"></textarea>
+            <button onclick="calcStringLength()" data-i18n="btn_calc">Calculate</button>
+            <div class="result" id="strResult" data-i18n="result_default">Result will show here</div>
+        </div>
+
+        <div class="tool-card">
+            <h3 data-i18n="t2_title">URL Encoder/Decoder</h3>
+            <p class="tool-desc" data-i18n="t2_desc">Encode or Decode URL</p>
+            <textarea id="urlInput" rows="2" data-i18n-placeholder="input_url"></textarea>
+            <button onclick="urlEncode()" data-i18n="btn_encode">Encode</button>
+            <button onclick="urlDecode()" data-i18n="btn_decode">Decode</button>
+            <div class="result" id="urlResult" data-i18n="result_default">Result will show here</div>
+        </div>
+
+        <div class="tool-card">
+            <h3 data-i18n="t3_title">JSON Formatter</h3>
+            <p class="tool-desc" data-i18n="t3_desc">Pretty print JSON</p>
+            <textarea id="jsonInput" rows="2" data-i18n-placeholder="input_json"></textarea>
+            <button onclick="formatJSON()" data-i18n="btn_format">Format</button>
+            <div class="result" id="jsonResult" data-i18n="result_default">Result will show here</div>
+        </div>
+
+        <div class="tool-card">
+            <h3 data-i18n="t4_title">UUID Generator</h3>
+            <p class="tool-desc" data-i18n="t4_desc">Generate random UUID v4</p>
+            <button onclick="generateUUID()" data-i18n="btn_generate">Generate</button>
+            <div class="result" id="uuidResult" data-i18n="result_default">Result will show here</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const translations = {
+        'en': {
+            'title': 'Web Toolbox', 'btn_calc': 'Calculate', 'btn_encode': 'Encode', 'btn_decode': 'Decode', 'btn_format': 'Format', 'btn_generate': 'Generate',
+            'input_text': 'Input your text...', 'input_url': 'Input URL...', 'input_json': 'Paste JSON here...',
+            'result_default': 'Result will show here',
+            't1_title': 'String Length', 't1_desc': 'Calculate text length',
+            't2_title': 'URL Encoder/Decoder', 't2_desc': 'Encode or Decode URL',
+            't3_title': 'JSON Formatter', 't3_desc': 'Pretty print JSON',
+            't4_title': 'UUID Generator', 't4_desc': 'Generate random UUID v4'
+        },
+        'zh-CN': {
+            'title': 'Web 工具箱', 'btn_calc': '计算', 'btn_encode': '编码', 'btn_decode': '解码', 'btn_format': '格式化', 'btn_generate': '生成',
+            'input_text': '在此输入文本...', 'input_url': '在此输入 URL...', 'input_json': '在此粘贴 JSON...',
+            'result_default': '结果将显示在此处',
+            't1_title': '字符长度', 't1_desc': '计算文本字符数',
+            't2_title': 'URL 编码/解码', 't2_desc': '对 URL 进行编码或解码',
+            't3_title': 'JSON 格式化', 't3_desc': '美化 JSON 代码',
+            't4_title': 'UUID 生成器', 't4_desc': '生成随机 UUID v4'
+        },
+        'zh-TW': {
+            'title': 'Web 工具箱', 'btn_calc': '計算', 'btn_encode': '編碼', 'btn_decode': '解碼', 'btn_format': '格式化', 'btn_generate': '生成',
+            'input_text': '在此輸入文字...', 'input_url': '在此輸入 URL...', 'input_json': '在此貼上 JSON...',
+            'result_default': '結果將顯示在此處',
+            't1_title': '字元長度', 't1_desc': '計算文字字元數',
+            't2_title': 'URL 編碼/解碼', 't2_desc': '對 URL 進行編碼或解碼',
+            't3_title': 'JSON 格式化', 't3_desc': '美化 JSON 代碼',
+            't4_title': 'UUID 生成器', 't4_desc': '生成隨機 UUID v4'
+        }
+    };
+
+    function updateLanguage(lang) {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (translations[lang][key]) {
+                if (el.hasAttribute('data-i18n-placeholder')) {
+                    el.placeholder = translations[lang][key];
+                } else {
+                    // 仅当结果内容未被“计算结果”覆盖时，才进行翻译替换
+                    // 这样做能避免点击计算后，切换语言把结果变成“Result will show here”
+                    if (el.classList.contains('result')) {
+                        // 这是一个小技巧：如果结果区域没内容，则显示占位符
+                        if (el.innerText.includes('Result') || el.innerText.includes('结果')) {
+                            el.innerText = translations[lang][key];
+                        }
+                    } else {
+                        el.innerText = translations[lang][key];
+                    }
+                }
+            }
+        });
+        document.documentElement.lang = lang;
+    }
+
+    // 初始化为英文
+    updateLanguage('en');
+
+    // 工具逻辑
+    function calcStringLength() {
+        const val = document.getElementById('strInput').value;
+        document.getElementById('strResult').innerText = val.length;
+    }
+    function urlEncode() {
+        const val = document.getElementById('urlInput').value;
+        document.getElementById('urlResult').innerText = encodeURIComponent(val);
+    }
+    function urlDecode() {
+        const val = document.getElementById('urlInput').value;
+        document.getElementById('urlResult').innerText = decodeURIComponent(val);
+    }
+    function formatJSON() {
+        try {
+            const val = JSON.parse(document.getElementById('jsonInput').value);
+            document.getElementById('jsonResult').innerText = JSON.stringify(val, null, 4);
+        } catch (e) { document.getElementById('jsonResult').innerText = 'Error: Invalid JSON'; }
+    }
+    function generateUUID() {
+        const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+        document.getElementById('uuidResult').innerText = uuid;
+    }
+</script>
+</body>
+</html>

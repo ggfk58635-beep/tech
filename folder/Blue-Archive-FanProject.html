@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Blue Archive</title>
+    <style>
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            background-color: #111; font-family: "Helvetica Neue", Arial, sans-serif;
+            touch-action: none !important;
+        }
+        
+        /* 🚫 全局抹除复制干扰，但豁免输入框 */
+        * { 
+            box-sizing: border-box; 
+            user-select: none; 
+            -webkit-user-select: none; 
+            -webkit-tap-highlight-color: transparent !important; 
+        }
+        
+        /* ⚡ 针对图片 1000012759.jpg 中键盘无法弹出的核心修复方案 */
+        input, textarea, [contenteditable="true"] {
+            touch-action: auto !important;
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            pointer-events: auto !important;
+        }
+        
+        #game-stage { 
+            position: relative; width: 100%; height: 100%; background-color: #f3f7fa; overflow: hidden;
+            touch-action: none !important;
+        }
+
+        #custom-cursor {
+            position: fixed; top: -50px; left: -50px; width: 16px; height: 16px;
+            border: 2px solid rgba(0, 166, 255, 0.7); border-radius: 50%;
+            background: rgba(0, 166, 255, 0.2); pointer-events: none; z-index: 99999;
+            transform: translate(-50%, -50%); display: none;
+            box-shadow: 0 0 6px rgba(0, 229, 255, 0.4);
+        }
+        .pc-mode, .pc-mode * { cursor: none !important; }
+
+        #effect-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 9999;
+            touch-action: none !important;
+        }
+
+        /* 横屏拦截 */
+        #orientation-blocker {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #00a6ff; color: white; z-index: 99999;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        @media (orientation: portrait) {
+            #orientation-blocker { display: flex; }
+            #game-stage { display: none; }
+        }
+
+        /* 开场登录界面 */
+        #title-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #00a6ff; z-index: 100; overflow: hidden; transition: opacity 0.5s ease;
+        }
+        .ba-logo-topleft {
+            position: absolute; top: 8%; left: 6%; color: #ffffff;
+            font-size: clamp(20px, 5vw, 32px); font-weight: 800; letter-spacing: 1px;
+        }
+        .ba-logo-topleft span { font-weight: 300; opacity: 0.95; }
+        .loading-circle {
+            position: absolute; bottom: 15%; left: 6%; width: 24px; height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.2); border-top-color: #ffffff; border-radius: 50%; display: none; 
+        }
+        .loading-circle.spin { display: block; animation: circleRotate 1s linear infinite; }
+        @keyframes circleRotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .progress-container {
+            position: absolute; bottom: 16.5%; left: 12%; width: 82%; height: 3px; 
+            background-color: rgba(255, 255, 255, 0.2); border-radius: 2px; overflow: hidden; transition: opacity 0.4s ease;
+        }
+        .progress-bar { width: 0%; height: 100%; background-color: #ffffff; box-shadow: 0 0 8px #ffffff; }
+        .progress-bar.animate { animation: startLoading 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        @keyframes startLoading { 0% { width: 0%; } 100% { width: 100%; } }
+        
+        #name-modal {
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: min(85vw, 400px); background-color: #ffffff; border-radius: 12px; padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); z-index: 150; text-align: center; border-top: 6px solid #00a6ff; 
+        }
+        #name-modal h3 { color: #2b394a; margin-bottom: 15px; font-weight: 800; }
+        #name-input {
+            width: 100%; padding: 12px 15px; font-size: 16px; border: 2px solid #e2e8f0;
+            border-radius: 6px; text-align: center; outline: none;
+        }
+        #name-input:focus { border-color: #00a6ff; }
+        #confirm-btn {
+            margin-top: 15px; width: 100%; background-color: #00a6ff; color: white; border: none; padding: 12px; font-weight: bold; border-radius: 6px; cursor: pointer;
+        }
+        .start-text-overlay {
+            display: none; position: absolute; bottom: 15%; left: 0; width: 100%; text-align: center;
+            color: #ffffff; font-size: clamp(16px, 4vw, 24px); font-weight: bold; letter-spacing: 2px; animation: slowBlink 2.5s infinite ease-in-out;
+        }
+        @keyframes slowBlink { 0%, 100% { opacity: 0; } 50% { opacity: 0.85; } }
+
+        /* 游戏主页 */
+        #main-lobby {
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0;
+            background: url('https://patchwiki.biligame.com/images/ba/5/52/k3un030x7rdrfcr98e8fks1e9n5pka2.jpg') no-repeat center center;
+            background-size: cover; background-color: #e4eff6; display: flex; flex-direction: column; justify-content: space-between; padding: 2% 4%;
+        }
+        .lobby-top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; z-index: 10; }
+        .profile-container {
+            display: flex; align-items: center; background: rgba(255, 255, 255, 0.85); padding: 4px 14px 4px 4px; border-radius: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 2px solid #ffffff;
+        }
+        .avatar-box {
+            width: 40px; height: 40px; background: linear-gradient(135deg, #00a6ff, #005fcc); border-radius: 50%;
+            display: flex; justify-content: center; align-items: center; color: white; font-weight: 900; font-size: 16px; border: 2px solid #ffffff;
+        }
+        .profile-info { margin-left: 8px; }
+        .profile-title { font-size: 10px; color: #7f8c8d; font-weight: bold; }
+        .profile-name { font-size: 15px; color: #2b394a; font-weight: 800; }
+        
+        .top-right-group { display: flex; align-items: center; gap: 10px; }
+        .currency-container { display: flex; gap: 8px; }
+        .currency-box {
+            display: flex; align-items: center; background: #2b394a; color: #ffffff; padding: 4px 12px; border-radius: 6px; min-width: 110px; justify-content: space-between; border-bottom: 3px solid #1a2533;
+        }
+        .currency-icon { font-size: 13px; font-weight: bold; margin-right: 4px; }
+        .pyroxene-icon { color: #00ccff; text-shadow: 0 0 5px #00ccff; }
+        .credit-icon { color: #ffcc00; text-shadow: 0 0 5px #ffcc00; }
+        .currency-amount { font-family: monospace; font-size: 13px; font-weight: bold; }
+        
+        .utility-btn-group { display: flex; gap: 6px; }
+        .util-btn {
+            background: rgba(255, 255, 255, 0.9); border: 2px solid #ffffff; width: 36px; height: 36px; border-radius: 8px; font-size: 16px; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative;
+        }
+        .util-btn .badge { position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; background: #ff4a4a; border-radius: 50%; display: none; }
+
+        .center-welcome {
+            position: absolute; top: 22%; left: 4%; background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 8px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.3); color: #2b394a; font-weight: bold; font-size: 13px;
+        }
+        .lobby-bottom-bar { width: 100%; display: flex; justify-content: space-between; align-items: flex-end; z-index: 10; }
+        .nav-group-left, .nav-group-right { display: flex; gap: 6px; }
+        .ba-btn {
+            background: #ffffff; color: #2b394a; border: none; padding: 8px 15px; font-size: 13px; font-weight: 800; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.08); border-bottom: 3px solid #cbd5e1; transition: all 0.1s ease;
+        }
+        .ba-btn:active { transform: translateY(2px); border-bottom-width: 1px; }
+        .ba-btn.highlight-blue { background: #00a6ff; color: white; border-bottom-color: #0082cc; }
+        .ba-btn.highlight-orange { background: #ff7f00; color: white; border-bottom-color: #cc6600; }
+
+        /* 抽卡主屏幕 */
+        #gacha-layer {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #2b394a 0%, #1a2533 100%); z-index: 500; padding: 2% 4%; flex-direction: column; justify-content: space-between;
+        }
+        .gacha-header { display: flex; justify-content: space-between; align-items: center; }
+        .gacha-title { color: white; font-size: 20px; font-weight: 900; border-left: 5px solid #00a6ff; padding-left: 8px; }
+        .gacha-banner-mock {
+            width: 100%; height: 48%; background: linear-gradient(45deg, #00d2ff, #0066cc); border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border: 3px solid #ffffff; text-align: center;
+        }
+        .gacha-banner-mock h2 { margin: 0; font-size: clamp(20px, 4vw, 32px); font-weight: 900; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .gacha-banner-mock p { margin: 5px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.8); }
+        .gacha-footer { display: flex; justify-content: center; gap: 15px; }
+        .pull-btn { padding: 12px 35px; font-size: 15px; font-weight: 900; border: none; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .pull-btn span { font-size: 11px; opacity: 0.8; font-weight: normal; margin-top: 2px; }
+        .pull-btn:active { transform: scale(0.98); }
+        .btn-single { background: #ffffff; color: #2b394a; border-bottom: 4px solid #cbd5e1; }
+        .btn-ten { background: #ffcc00; color: #2b394a; border-bottom: 4px solid #cc9900; }
+
+        /* ✍️ 真实手写签名验证层 */
+        #gacha-sign-layer {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 998;
+            background: rgba(10, 25, 45, 0.9); flex-direction: column; justify-content: center; align-items: center;
+        }
+        .sign-board {
+            width: min(80vw, 550px); height: min(65vh, 320px); background: #ffffff; border-radius: 12px; border: 4px solid #00a6ff; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column;
+        }
+        .sign-board-header { background: #00a6ff; color: white; padding: 6px 15px; font-weight: bold; font-size: 13px; display: flex; justify-content: space-between; }
+        #signature-canvas { flex: 1; width: 100%; background: #f8fafc; cursor: crosshair; touch-action: none !important; }
+        .sign-board-footer { padding: 8px; display: flex; justify-content: flex-end; gap: 10px; background: #edf2f7; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+
+        /* 🎬 抽卡动画层 */
+        #gacha-animation-screen {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999;
+            background: radial-gradient(circle at center, #59c0ff 0%, #0066cc 70%, #003388 100%); flex-direction: column; justify-content: center; align-items: center; overflow: hidden;
+        }
+        .skip-gacha-btn {
+            position: absolute; top: 6%; right: 4%; background: rgba(0,0,0,0.4); color: white; border: 2px solid rgba(255,255,255,0.6); padding: 5px 16px; border-radius: 20px; font-weight: 900; font-size: 13px; z-index: 1001; cursor: pointer; backdrop-filter: blur(5px);
+        }
+        .hologram-hud {
+            position: absolute; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 50%; pointer-events: none; animation: hudRotate 20s linear infinite;
+        }
+        @keyframes hudRotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .gacha-core-orb {
+            width: 70px; height: 70px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 35px #ffffff, 0 0 70px #00e5ff, 0 0 100px #ffffff; z-index: 10; transform: scale(0); animation: orbGrow 1.8s cubic-bezier(0.15, 0.85, 0.35, 1) forwards;
+        }
+        @keyframes orbGrow { 0% { transform: scale(0); filter: blur(4px); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        
+        #gacha-sign-container {
+            position: absolute; width: 220px; height: 220px; z-index: 15; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; opacity: 0;
+        }
+        .sign-text {
+            position: absolute; bottom: -30px; color: #ffffff; font-size: 11px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 6px #00e5ff; opacity: 0; transform: translateY(5px);
+        }
+        .animate-sign .sign-text { animation: fadeInUp 0.4s 0.2s ease-out forwards, glowPulse 1.5s infinite linear; }
+        @keyframes drawSignature { to { stroke-dashoffset: 0; } }
+        @keyframes fadeInUp { to { opacity: 0.9; transform: translateY(0); } }
+        @keyframes glowPulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.4); } }
+        .laser-beam {
+            position: absolute; bottom: -10%; width: 2px; height: 120%; background: linear-gradient(to top, transparent, rgba(255,255,255,0.7), #00e5ff, transparent); opacity: 0; z-index: 5;
+        }
+        #gacha-flash-cover { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 25; opacity: 0; pointer-events: none; }
+        
+        .flash-star3 { animation: flashBoomPurple 0.9s 2s cubic-bezier(0.1, 0.8, 0.1, 1) forwards; }
+        .flash-star2 { animation: flashBoomYellow 0.9s 2s cubic-bezier(0.1, 0.8, 0.1, 1) forwards; }
+        .flash-star1 { animation: flashBoomBlue 0.9s 2s cubic-bezier(0.1, 0.8, 0.1, 1) forwards; }
+        @keyframes flashBoomPurple { 0% { background: #ffffff; opacity: 0; } 15% { background: #d946ef; opacity: 1; filter: brightness(2); } 100% { background: #000000; opacity: 0; } }
+        @keyframes flashBoomYellow { 0% { background: #ffffff; opacity: 0; } 15% { background: #eab308; opacity: 1; filter: brightness(1.6); } 100% { background: #000000; opacity: 0; } }
+        @keyframes flashBoomBlue { 0% { background: #ffffff; opacity: 0; } 15% { background: #0ea5e9; opacity: 1; } 100% { background: #000000; opacity: 0; } }
+
+        /* 结果展示 */
+        #result-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 22, 33, 0.98); z-index: 1000; flex-direction: column; justify-content: space-between; align-items: center; padding: 12px 20px;
+        }
+        #result-modal h2 { color: white; font-size: 20px; font-weight: 900; margin: 0; text-shadow: 0 0 10px rgba(0,166,255,0.5); }
+        .result-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; max-width: 620px; max-height: 58vh; overflow-y: auto; padding: 6px; }
+        .card {
+            width: 90px; height: 120px; background: white; border-radius: 6px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 8px 4px; font-weight: bold; position: relative; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.3); flex-shrink: 0;
+        }
+        .star-3 { border: 2.5px solid #b500ff; background: #fdf2ff; color: #b500ff; }
+        .star-2 { border: 2.5px solid #ffcc00; background: #fffdf2; color: #cc9900; }
+        .star-1 { border: 2.5px solid #00a6ff; background: #f2faff; color: #2b394a; }
+        .card-stars { font-size: 10px; color: #ffcc00; }
+        .card-name { font-size: 10.5px; text-align: center; line-height: 1.2; word-break: break-all; }
+
+        /* 通用模态弹窗面板 */
+        .game-modal-popup {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 800; background: rgba(0,0,0,0.6); justify-content: center; align-items: center;
+        }
+        .modal-content-card {
+            width: min(85vw, 450px); background: #ffffff; border-radius: 10px; border-top: 5px solid #00a6ff; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .modal-content-card h3 { margin: 0 0 15px 0; color: #2b394a; font-weight: 900; }
+        .modal-body { flex: 1; max-height: 45vh; overflow-y: auto; margin-bottom: 15px; }
+        
+        /* 邮件条目样式 */
+        .mail-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
+        .mail-title { font-size: 13px; font-weight: bold; color: #334155; }
+        .mail-reward { font-size: 11px; color: #00a6ff; margin-top: 2px; }
+
+        /* 阿罗娜大厅 */
+        #work-layer {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #edf6fd 0%, #cfeaff 100%); z-index: 400; padding: 1.5% 3%; flex-direction: row; justify-content: space-between; align-items: center;
+        }
+        .arona-interactive-column {
+            width: 44%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; align-items: center; position: relative;
+        }
+        .arona-render-container {
+            width: 100%; height: 68%; position: relative; display: flex; justify-content: center; align-items: flex-end; transition: transform 0.1s ease;
+        }
+        .arona-render-container:active { transform: scale(0.98); }
+        .arona-halo-glow {
+            position: absolute; top: 5%; width: 90px; height: 25px;
+            animation: haloFloat 3s ease-in-out infinite; pointer-events: none;
+        }
+        @keyframes haloFloat {
+            0%, 100% { transform: translateY(0) rotate(-2deg); filter: drop-shadow(0 0 5px rgba(0,229,255,0.7)); }
+            50% { transform: translateY(-5px) rotate(3deg); filter: drop-shadow(0 0 12px rgba(0,200,255,1)); }
+        }
+        .arona-story-textbox {
+            width: 100%; height: 28%; background: rgba(255, 255, 255, 0.92); border: 2.5px solid #00a6ff; border-radius: 8px; box-shadow: 0 6px 15px rgba(0,166,255,0.12); position: relative; padding: 10px 14px; display: flex; flex-direction: column; justify-content: flex-start;
+        }
+        .arona-story-textbox::before {
+            content: ''; position: absolute; top: 3px; left: 3px; right: 3px; bottom: 3px; border: 1px dashed rgba(0,166,255,0.3); border-radius: 5px; pointer-events: none;
+        }
+        .arona-nametag {
+            position: absolute; top: -14px; left: 15px; background: #00a6ff; color: white; padding: 2px 14px; font-weight: 900; font-size: 11px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,166,255,0.3); letter-spacing: 0.5px; border: 1.5px solid #ffffff;
+        }
+        .arona-plot-text {
+            margin-top: 5px; font-size: 12.5px; color: #2b394a; font-weight: 700; line-height: 1.5; letter-spacing: 0.5px; word-break: break-all;
+        }
+        .work-menu-panel { width: 52%; height: 95%; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+        .work-hub-btn {
+            width: 100%; height: 65px; border-radius: 10px; border: none; font-size: 18px; font-weight: 900; cursor: pointer; display: flex; align-items: center; padding: 0 25px; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.1s ease;
+        }
+        .work-hub-btn:active { transform: scale(0.98); }
+        .btn-story { background: linear-gradient(90deg, #9ca3af, #cbd5e1); color: #4b5563; border-bottom: 4px solid #6b7280; }
+        .btn-mission { background: linear-gradient(90deg, #2563eb, #00a6ff); color: white; border-bottom: 4px solid #1d4ed8; text-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+        /* 副本关卡选择 */
+        #stage-layer {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #f4f7fa; z-index: 450; padding: 2% 4%; flex-direction: column; justify-content: space-between;
+        }
+        .stage-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+        .stage-title { font-size: 18px; font-weight: 900; color: #2b394a; }
+        .stage-grid { display: flex; justify-content: space-between; align-items: center; width: 100%; height: 60%; gap: 10px; }
+        .stage-node {
+            flex: 1; height: 110px; background: white; border: 2px solid #cbd5e1; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.04); transition: all 0.2s;
+        }
+        .stage-node.active { border-color: #00a6ff; background: #f0f9ff; color: #00a6ff; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,166,255,0.15); }
+        .stage-node.locked { background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; cursor: not-allowed; opacity: 0.6; }
+        .node-number { font-size: 20px; font-weight: 900; }
+        .node-status { font-size: 11px; margin-top: 5px; }
+
+        /* 战斗loading模拟 */
+        #battle-progress-overlay {
+            display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(15, 23, 42, 0.95); z-index: 2000; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .battle-text { color: white; font-size: 16px; font-weight: 800; margin-bottom: 15px; letter-spacing: 1px; }
+        .battle-bar-bg { width: 60%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+        .battle-bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #00ccff, #b500ff); box-shadow: 0 0 10px #00ccff; }
+
+        #toast-notice {
+            position: fixed; top: 12%; left: 50%; transform: translateX(-50%);
+            background: rgba(43, 57, 74, 0.95); color: #ffffff; padding: 8px 24px; border-radius: 4px; font-weight: bold; border-left: 5px solid #ff4a4a; z-index: 99999; opacity: 0; transition: opacity 0.2s ease; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="custom-cursor"></div>
+    <canvas id="effect-canvas"></canvas>
+
+    <div id="orientation-blocker">
+        <h2 style="font-size: 20px;">🔄 请将设备横过来游玩</h2>
+    </div>
+
+    <div id="game-stage">
+        
+        <!-- 1. 登录大屏 -->
+        <div id="title-screen">
+            <div class="ba-logo-topleft">Blue <span>Archive</span></div>
+            <div class="loading-circle" id="l-circle"></div>
+            <div class="progress-container" id="p-container">
+                <div class="progress-bar" id="p-bar"></div>
+            </div>
+            
+            <!-- 修复点击穿透与无法聚焦键盘弹窗 -->
+            <div id="name-modal">
+                <h3>夏莱终端数据访问</h3>
+                <input type="text" id="name-input" placeholder="输入老师的名称登录/注册" maxlength="10">
+                <button id="confirm-btn">进入系统</button>
+            </div>
+            <div class="start-text-overlay" id="start-btn">点击任意地方开始游玩</div>
+        </div>
+
+        <!-- 2. 游戏主页 -->
+        <div id="main-lobby">
+            <div class="lobby-top-bar">
+                <div class="profile-container">
+                    <div class="avatar-box" id="avatar-letter">S</div>
+                    <div class="profile-info">
+                        <div class="profile-title">CHALET SENSEI</div>
+                        <div class="profile-name" id="lobby-username">老师</div>
+                    </div>
+                </div>
+                
+                <div class="top-right-group">
+                    <div class="currency-container">
+                        <div class="currency-box"><span class="currency-icon credit-icon">₢</span><span class="currency-amount" id="lobby-credits">0</span></div>
+                        <div class="currency-box"><span class="currency-icon pyroxene-icon">◆</span><span class="currency-amount" id="lobby-pyroxenes">0</span></div>
+                    </div>
+                    
+                    <div class="utility-btn-group">
+                        <button class="util-btn" id="lobby-signin-btn" title="每日签到">📅</button>
+                        <button class="util-btn" id="lobby-mail-btn" title="邮箱">✉️<div class="badge" id="mail-badge"></div></button>
+                        <button class="util-btn" id="lobby-settings-btn" title="设置">⚙️</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="center-welcome">欢迎回到夏莱办公室，老师！</div>
+            
+            <div class="lobby-bottom-bar">
+                <div class="nav-group-left">
+                    <button class="ba-btn menu-btn">咖啡厅</button>
+                    <button class="ba-btn menu-btn">日程</button>
+                    <button class="ba-btn menu-btn">学生</button>
+                    <button class="ba-btn menu-btn">编队</button>
+                </div>
+                <div class="nav-group-right">
+                    <button class="ba-btn menu-btn">商店</button>
+                    <button class="ba-btn highlight-blue" id="go-gacha-btn">招募</button>
+                    <button class="ba-btn highlight-orange" id="go-work-btn">工作任务</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 阿罗娜大厅 -->
+        <div id="work-layer">
+            <div class="arona-interactive-column">
+                <div class="arona-render-container" id="arona-click-zone">
+                    <svg class="arona-halo-glow" viewBox="0 0 100 30">
+                        <ellipse cx="50" cy="15" rx="40" ry="8" fill="none" stroke="#00e5ff" stroke-width="3" opacity="0.85"/>
+                        <ellipse cx="50" cy="15" rx="43" ry="9.5" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4 2"/>
+                        <path d="M 46 15 L 50 11 L 54 15 L 50 19 Z" fill="#33ccff"/>
+                    </svg>
+
+                    <svg width="100%" height="100%" viewBox="0 0 200 240" style="max-width: 170px;">
+                        <ellipse cx="100" cy="235" rx="50" ry="5" fill="rgba(0,120,220,0.15)" />
+                        <path d="M 60 170 Q 30 210 50 240 L 150 240 Q 170 210 140 170 Z" fill="#0088e6"/>
+                        <path d="M 65 95 Q 60 135 100 135 Q 140 135 135 95 Q 135 65 100 65 Q 65 65 65 95 Z" fill="#fff0e6" />
+                        <ellipse cx="78" cy="113" rx="8" ry="4" fill="#ffb6c1" opacity="0.6"/>
+                        <ellipse cx="122" cy="113" rx="8" ry="4" fill="#ffb6c1" opacity="0.6"/>
+                        <path d="M 62 90 Q 50 140 55 160 Q 65 130 68 110 Z" fill="#33aaff"/>
+                        <path d="M 138 90 Q 150 140 145 160 Q 135 130 132 110 Z" fill="#33aaff"/>
+                        <path d="M 130 75 Q 175 75 165 110 Q 145 110 135 85 Z" fill="#008bfa" />
+                        <path d="M 64 80 Q 80 105 88 100 Q 95 75 100 75 Q 105 75 112 100 Q 120 105 136 80 Q 100 55 64 80 Z" fill="#58beff" />
+                        <path d="M 80 80 L 85 95 L 90 80 Z" fill="#33aaff" opacity="0.5"/>
+                        <path d="M 110 80 L 115 95 L 120 80 Z" fill="#33aaff" opacity="0.5"/>
+                        <path d="M 66 75 Q 100 58 134 75 L 132 70 Q 100 53 68 70 Z" fill="#ffffff" />
+                        <path d="M 128 66 Q 140 50 145 65 Q 135 75 128 66 Z" fill="#ff6699" />
+                        <path d="M 126 68 Q 135 55 136 72 Q 128 78 126 68 Z" fill="#ffffff" />
+                        <g>
+                            <ellipse cx="83" cy="105" rx="7" ry="10" fill="#0055b3" />
+                            <ellipse cx="83" cy="103" rx="5" ry="7" fill="#0088ff" />
+                            <circle cx="81" cy="100" r="2.5" fill="#ffffff" />
+                            <circle cx="85" cy="107" r="1.2" fill="#ffffff" />
+                            <ellipse cx="117" cy="105" rx="7" ry="10" fill="#0055b3" />
+                            <ellipse cx="117" cy="103" rx="5" ry="7" fill="#0088ff" />
+                            <circle cx="115" cy="100" r="2.5" fill="#ffffff" />
+                            <circle cx="119" cy="107" r="1.2" fill="#ffffff" />
+                            <path d="M 76 93 Q 83 91 89 94" fill="none" stroke="#0077e6" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M 124 93 Q 117 91 111 94" fill="none" stroke="#0077e6" stroke-width="2" stroke-linecap="round"/>
+                        </g>
+                        <path d="M 96 119 Q 100 123 104 119" fill="none" stroke="#ff6688" stroke-width="2.5" stroke-linecap="round" />
+                        <path d="M 80 145 L 100 165 L 120 145 L 135 175 L 65 175 Z" fill="#ffffff" />
+                        <path d="M 82 145 L 100 162 L 118 145 Z" fill="#0088e6" />
+                        <path d="M 100 160 L 85 152 L 88 165 L 100 163 L 112 165 L 115 152 Z" fill="#ff5588" />
+                        <circle cx="100" cy="160" r="3.5" fill="#ffffff" />
+                        <path d="M 75 175 L 125 175 L 130 240 L 70 240 Z" fill="#ffffff" />
+                        <rect x="70" y="225" width="60" height="5" fill="#0088e6"/>
+                    </svg>
+                </div>
+                
+                <div class="arona-story-textbox">
+                    <div class="arona-nametag">阿罗娜 (Arona)</div>
+                    <div class="arona-plot-text" id="arona-dialogue-box">老师，今天想进行什么工作呢？阿罗娜随时准备着！</div>
+                </div>
+            </div>
+
+            <div class="work-menu-panel">
+                <button class="work-hub-btn btn-story" id="work-story-btn"><span>📖 主线故事</span><span style="font-size:12px;opacity:0.7;">未开放</span></button>
+                <button class="work-hub-btn btn-mission" id="work-mission-btn"><span>⚔️ 战术任务</span><span style="font-size:14px;">GO ➔</span></button>
+                <button class="ba-btn" id="back-lobby-from-work" style="width:100px; margin-top:10px; align-self: flex-end;">返回主页</button>
+            </div>
+        </div>
+
+        <!-- 4. 任务关卡面板 -->
+        <div id="stage-layer">
+            <div class="stage-header">
+                <div class="stage-title" id="stage-panel-title">战术任务 - 第 1 区域</div>
+                <button class="ba-btn" id="back-work-btn">返回工作</button>
+            </div>
+            <div class="stage-grid" id="stage-nodes-container"></div>
+            <div style="font-size:11px; color:#7f8c8d; text-align: center;">※ 每关首次/重复通关均奖励 50 青辉石</div>
+        </div>
+
+        <!-- 5. 突击模拟遮罩层 -->
+        <div id="battle-progress-overlay">
+            <div class="battle-text" id="battle-status-text">正在指引学生进行突击模拟...</div>
+            <div class="battle-bar-bg">
+                <div class="battle-bar-fill" id="battle-bar-fill"></div>
+            </div>
+        </div>
+
+        <!-- 6. 招募池界面 -->
+        <div id="gacha-layer">
+            <div class="gacha-header">
+                <div class="gacha-title">学生招募特选</div>
+                <button class="ba-btn" id="back-lobby-btn">返回主页</button>
+            </div>
+            <div class="gacha-banner-mock">
+                <h2>纪念特选招募</h2>
+                <p>包含 Key(键)、武装爱丽丝及全部经典和限时复刻成员！</p>
+            </div>
+            <div class="gacha-footer">
+                <button class="pull-btn btn-single" id="pull-1-btn">招募 1次<span>◆ 120</span></button>
+                <button class="pull-btn btn-ten" id="pull-10-btn">招募 10次<span>◆ 1200</span></button>
+            </div>
+        </div>
+
+        <!-- ✍️ 7. 真实手写签名面板 -->
+        <div id="gacha-sign-layer">
+            <div class="sign-board">
+                <div class="sign-board-header">
+                    <span>SCHALET WORKPLACE WORK CONTRACT</span>
+                    <span>请在下方完成划线签名确认</span>
+                </div>
+                <canvas id="signature-canvas"></canvas>
+                <div class="sign-board-footer">
+                    <button class="ba-btn" id="clear-sign-btn">重填</button>
+                    <button class="ba-btn highlight-blue" id="submit-sign-btn">确认签约</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🎬 8. 全息科技抽卡动画屏 -->
+        <div id="gacha-animation-screen">
+            <button class="skip-gacha-btn" id="skip-gacha-btn">跳过 SKIP ➔</button>
+            <div class="hologram-hud" style="width: 500px; height: 500px; opacity:0.2;"></div>
+            <div class="hologram-hud" style="width: 380px; height: 380px; animation-direction: reverse; opacity:0.3; border-style: dotted;"></div>
+            
+            <div class="gacha-core-orb"></div>
+            <div id="gacha-sign-container">
+                <div class="sign-text">SIGNATURE VERIFIED</div>
+            </div>
+            <div id="laser-container" style="position:absolute; width:100%; height:100%;"></div>
+            <div id="gacha-flash-cover"></div>
+        </div>
+
+        <!-- 9. 抽卡展示结果 -->
+        <div id="result-modal">
+            <h2>招募结果</h2>
+            <div class="result-grid" id="result-grid"></div>
+            <button class="ba-btn highlight-blue" style="padding: 10px 50px; width: min(80vw, 200px);" id="close-result-btn">确认</button>
+        </div>
+
+        <!-- ✉️ 10. 邮箱弹窗 -->
+        <div class="game-modal-popup" id="mail-modal">
+            <div class="modal-content-card">
+                <h3>夏莱收件箱</h3>
+                <div class="modal-body" id="mail-list-container"></div>
+                <button class="ba-btn" id="close-mail-btn" style="align-self: flex-end;">关闭</button>
+            </div>
+        </div>
+
+        <!-- ⚙️ 11. 设置弹窗 -->
+        <div class="game-modal-popup" id="settings-modal">
+            <div class="modal-content-card">
+                <h3>系统设置</h3>
+                <div class="modal-body" style="display:flex; flex-direction:column; gap:12px; padding-top:10px;">
+                    <button class="ba-btn" id="logout-btn" style="padding:12px; font-weight:bold; background:#f1f5f9;">🚪 退出登录 (只断开，保留数据)</button>
+                    <button class="ba-btn" id="delete-data-btn" style="padding:12px; font-weight:bold; background:#fee2e2; color:#ef4444; border-bottom-color:#fca5a5;">⚠️ 注销账号 (彻底删掉当前账号数据)</button>
+                </div>
+                <button class="ba-btn" id="close-settings-btn" style="align-self: flex-end; margin-top:10px;">关闭</button>
+            </div>
+        </div>
+
+        <div id="toast-notice">Notice</div>
+
+    </div>
+
+    <script>
+        // 4. 超大容量原版池扩充 (包含 Key、武装爱丽丝及复刻绝版角色)
+        const pool = [
+            { name: "白子 (Shiroko)", stars: 3 },
+            { name: "星野 (Hoshino)", stars: 3 },
+            { name: "阿露 (Aru)", stars: 3 },
+            { name: "爱丽丝 (Aris)", stars: 3 },
+            { name: "日奈 (Hina)", stars: 3 },
+            { name: "Key (键)", stars: 3 },
+            { name: "武装爱丽丝 (Maid Aris)", stars: 3 },
+            { name: "米卡 (Mika)", stars: 3 },
+            { name: "若藻 (Wakamo)", stars: 3 },
+            { name: "时 (Toki)", stars: 3 },
+            { name: "梓 (Azusa)", stars: 3 },
+            { name: "小春 (Koharu)", stars: 3 },
+            { name: "切里诺 (Cherino)", stars: 3 },
+            { name: "伊织 (Iori)", stars: 3 },
+            { name: "瞬 (Shun)", stars: 3 },
+            { name: "亚子 (Ako)", stars: 3 },
+            { name: "日葵 (Himari)", stars: 3 },
+            { name: "忧 (Ui)", stars: 3 },
+            { name: "兔女郎阿斯娜 (Asuna Bunny)", stars: 3 },
+            { name: "兔女郎卡琳 (Karin Bunny)", stars: 3 },
+            { name: "美游 (Miyu)", stars: 3 },
+            { name: "都 (Miyako)", stars: 3 },
+            { name: "诺亚 (Noa)", stars: 3 },
+            
+            { name: "芹香 (Serika)", stars: 2 },
+            { name: "绫音 (Ayane)", stars: 2 },
+            { name: "纯子 (Junko)", stars: 2 },
+            { name: "千世 (Chise)", stars: 2 },
+            { name: "椿 (Tsubaki)", stars: 2 },
+            { name: "优香 (Yuuka)", stars: 2 },
+            { name: "花子 (Hanako)", stars: 2 },
+            
+            { name: "明里 (Akari)", stars: 1 },
+            { name: "遥香 (Haruka)", stars: 1 },
+            { name: "好美 (Yoshimi)", stars: 1 },
+            { name: "铃美 (Suzumi)", stars: 1 }
+        ];
+
+        const aronaQuotes = [
+            "老师，今天想进行什么工作呢？阿罗娜随时准备着！",
+            "老师！请打起精神来，什亭之箱今日运行一切正常！",
+            "呜哇……老师刚才是在偷偷看阿罗娜吗？嘿嘿。",
+            "今天的日程也排得很满呢，不过和老师在一起就不会觉得累！",
+            "三星！这次一定会爆出满天紫光的，老师要相信阿罗娜哦！"
+        ];
+        
+        // 5 & 6. 核心数据持久化状态结构
+        let globalAccounts = JSON.parse(localStorage.getItem('ba_remake_accounts') || '{}');
+        let currentUsername = localStorage.getItem('ba_remake_current_user') || '';
+        let uData = null;
+
+        // 绑定组件
+        const pBar = document.getElementById('p-bar');
+        const pContainer = document.getElementById('p-container');
+        const lCircle = document.getElementById('l-circle');
+        const nameModal = document.getElementById('name-modal');
+        const nameInput = document.getElementById('name-input');
+        const confirmBtn = document.getElementById('confirm-btn');
+        const startBtn = document.getElementById('start-btn');
+        const titleScreen = document.getElementById('title-screen');
+        const lobbyUsername = document.getElementById('lobby-username');
+        const avatarLetter = document.getElementById('avatar-letter');
+        const toastNotice = document.getElementById('toast-notice');
+        const gachaLayer = document.getElementById('gacha-layer');
+        const resultModal = document.getElementById('result-modal');
+        const resultGrid = document.getElementById('result-grid');
+        const workLayer = document.getElementById('work-layer');
+        const stageLayer = document.getElementById('stage-layer');
+        const stageNodesContainer = document.getElementById('stage-nodes-container');
+        const stagePanelTitle = document.getElementById('stage-panel-title');
+        const battleOverlay = document.getElementById('battle-progress-overlay');
+        const battleBarFill = document.getElementById('battle-bar-fill');
+        const aronaDialogueBox = document.getElementById('arona-dialogue-box');
+
+        const mailModal = document.getElementById('mail-modal');
+        const settingsModal = document.getElementById('settings-modal');
+        const mailBadge = document.getElementById('mail-badge');
+        const mailListContainer = document.getElementById('mail-list-container');
+
+        let loadingStarted = false;
+        let loadingComplete = false;
+        let sessionReady = false; 
+
+        function showToast(msg) {
+            toastNotice.textContent = msg;
+            toastNotice.style.opacity = '1';
+            setTimeout(() => { toastNotice.style.opacity = '0'; }, 1800);
+        }
+
+        // 初始化/加载玩家档案
+        function loadOrCreateUser(name) {
+            if (!globalAccounts[name]) {
+                // 注册全新账号
+                globalAccounts[name] = {
+                    name: name,
+                    pyroxenes: 0,
+                    credits: 0,
+                    currentArea: 1,
+                    currentStage: 1,
+                    claimedWelcomeMail: false,
+                    lastSignInDate: ""
+                };
+            }
+            currentUsername = name;
+            uData = globalAccounts[name];
+            saveAllData();
+            syncLobbyUI();
+        }
+
+        function saveAllData() {
+            if (currentUsername && uData) {
+                globalAccounts[currentUsername] = uData;
+            }
+            localStorage.setItem('ba_remake_accounts', JSON.stringify(globalAccounts));
+            localStorage.setItem('ba_remake_current_user', currentUsername);
+        }
+
+        function syncLobbyUI() {
+            if (!uData) return;
+            lobbyUsername.textContent = uData.name;
+            avatarLetter.textContent = uData.name.charAt(0).toUpperCase();
+            document.getElementById('lobby-pyroxenes').textContent = uData.pyroxenes.toLocaleString();
+            document.getElementById('lobby-credits').textContent = uData.credits.toLocaleString();
+            
+            // 检查未读邮件红点
+            mailBadge.style.display = uData.claimedWelcomeMail ? 'none' : 'block';
+        }
+
+        // 横向屏幕状态机监控
+        function monitorOrientation() {
+            const isLandscape = window.innerWidth > window.innerHeight;
+            if (isLandscape && !loadingStarted && !loadingComplete) {
+                loadingStarted = true; pBar.classList.add('animate'); lCircle.classList.add('spin'); 
+                setTimeout(() => {
+                    pContainer.style.opacity = '0'; lCircle.style.opacity = '0';
+                    setTimeout(() => {
+                        pContainer.style.display = 'none'; lCircle.style.display = 'none';
+                        nameModal.style.display = 'block'; loadingComplete = true;
+                        
+                        // 自动回填上一次的数据
+                        if (currentUsername) {
+                            nameInput.value = currentUsername;
+                        }
+                    }, 400);
+                }, 1500);
+            }
+        }
+
+        // 确认登录/注册按钮
+        confirmBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            let userName = nameInput.value.trim(); 
+            if (userName === "") {
+                showToast("请输入有效名称！");
+                return;
+            }
+            loadOrCreateUser(userName);
+            nameModal.style.display = 'none'; 
+            startBtn.style.display = 'block'; 
+            sessionReady = true; 
+        });
+
+        titleScreen.addEventListener('click', () => { 
+            if (!sessionReady) return; 
+            titleScreen.style.opacity = '0'; 
+            setTimeout(() => titleScreen.style.display = 'none', 500); 
+        });
+
+        // ================= ⚙️ 右上角综合控制系统 (签到/设置/邮件) =================
+        // 每日签到
+        document.getElementById('lobby-signin-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const todayStr = new Date().toDateString();
+            if (uData.lastSignInDate === todayStr) {
+                showToast("老师，今天已经签到过了哦！");
+            } else {
+                uData.credits += 500000;
+                uData.lastSignInDate = todayStr;
+                saveAllData();
+                syncLobbyUI();
+                showToast("🎁 签到成功！获得 500,000 信用点！");
+            }
+        });
+
+        // 邮件层控制
+        document.getElementById('lobby-mail-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            mailListContainer.innerHTML = '';
+            
+            const item = document.createElement('div');
+            item.className = 'mail-item';
+            if (!uData.claimedWelcomeMail) {
+                item.innerHTML = `
+                    <div>
+                        <div class="mail-title">夏莱系统注册数据奖励</div>
+                        <div class="mail-reward">奖励：◆ 1200</div>
+                    </div>
+                    <button class="ba-btn highlight-blue" id="claim-welcome-btn" style="padding:4px 12px; font-size:11px;">领取</button>
+                `;
+            } else {
+                item.innerHTML = `
+                    <div>
+                        <div class="mail-title" style="color:#94a3b8; text-decoration:line-through;">夏莱系统注册数据奖励</div>
+                        <div class="mail-reward" style="color:#94a3b8;">已领取完毕</div>
+                    </div>
+                    <button class="ba-btn" disabled style="padding:4px 12px; font-size:11px; background:#e2e8f0; color:#94a3b8; cursor:not-allowed; box-shadow:none; border:none;">已领</button>
+                `;
+            }
+            mailListContainer.appendChild(item);
+            mailModal.style.display = 'flex';
+
+            if (!uData.claimedWelcomeMail) {
+                document.getElementById('claim-welcome-btn').addEventListener('click', () => {
+                    uData.pyroxenes += 1200;
+                    uData.claimedWelcomeMail = true;
+                    saveAllData();
+                    syncLobbyUI();
+                    mailModal.style.display = 'none';
+                    showToast("🎉 成功领到 1200 青辉石！去抽卡吧！");
+                });
+            }
+        });
+        document.getElementById('close-mail-btn').addEventListener('click', () => mailModal.style.display = 'none');
+
+        // 设置面板控制
+        document.getElementById('lobby-settings-btn').addEventListener('click', (e) => { e.stopPropagation(); settingsModal.style.display = 'flex'; });
+        document.getElementById('close-settings-btn').addEventListener('click', () => settingsModal.style.display = 'none');
+
+        // 退出登录
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            saveAllData();
+            settingsModal.style.display = 'none';
+            sessionReady = false;
+            titleScreen.style.display = 'block';
+            titleScreen.style.opacity = '1';
+            nameModal.style.display = 'block';
+            startBtn.style.display = 'none';
+            showToast("已成功退出账户。");
+        });
+
+        // 彻底注销销毁
+        document.getElementById('delete-data-btn').addEventListener('click', () => {
+            if (confirm("警告：此操作将永久删掉当前账号的全部进度与石头！确定吗？")) {
+                delete globalAccounts[currentUsername];
+                currentUsername = '';
+                localStorage.removeItem('ba_remake_current_user');
+                localStorage.setItem('ba_remake_accounts', JSON.stringify(globalAccounts));
+                
+                settingsModal.style.display = 'none';
+                sessionReady = false;
+                nameInput.value = '';
+                titleScreen.style.display = 'block';
+                titleScreen.style.opacity = '1';
+                nameModal.style.display = 'block';
+                startBtn.style.display = 'none';
+                showToast("账号数据已彻底灰飞烟灭。");
+            }
+        });
+
+        // 默认废弃按钮回调
+        document.querySelectorAll('.menu-btn').forEach(btn => { btn.addEventListener('click', (e) => { e.stopPropagation(); showToast("未制作"); }); });
+
+        document.getElementById('go-gacha-btn').addEventListener('click', () => gachaLayer.style.display = 'flex');
+        document.getElementById('back-lobby-btn').addEventListener('click', () => gachaLayer.style.display = 'none');
+
+        document.getElementById('arona-click-zone').addEventListener('click', (e) => {
+            e.stopPropagation();
+            aronaDialogueBox.textContent = aronaQuotes[Math.floor(Math.random() * aronaQuotes.length)];
+        });
+
+        // ================= 🎨 顶层手势特效率动效 Canvas (已对 Input 键盘弹出完成豁免) =================
+        const canvas = document.getElementById('effect-canvas');
+        const ctx = canvas.getContext('2d');
+        let linePoints = []; let ripples = []; let isDrawing = false;
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+        window.addEventListener('pointerdown', (e) => {
+            // 豁免策略：如果点到了输入框，切勿阻止系统默认行为，确保键盘呼出
+            if (e.target.tagName === 'INPUT' || e.target.closest('.game-modal-popup') || e.target.closest('#name-modal')) return;
+            if (e.pointerType === 'touch') { e.preventDefault(); }
+            
+            ripples.push({ x: e.clientX, y: e.clientY, radius: 2, maxRadius: 40, opacity: 1, speed: 2.2 });
+            isDrawing = true;
+            linePoints = [{ x: e.clientX, y: e.clientY, age: 0 }];
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (e.pointerType === 'mouse') {
+                document.body.classList.add('pc-mode');
+                const cc = document.getElementById('custom-cursor');
+                cc.style.display = 'block'; cc.style.left = e.clientX + 'px'; cc.style.top = e.clientY + 'px';
+            }
+            if (!isDrawing) return;
+            linePoints.push({ x: e.clientX, y: e.clientY, age: 0 });
+        });
+        window.addEventListener('pointerup', () => isDrawing = false);
+        window.addEventListener('pointercancel', () => isDrawing = false);
+
+        function animateEffects() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                let r = ripples[i]; r.radius += r.speed; r.opacity -= 0.03;
+                if (r.opacity <= 0) { ripples.splice(i, 1); continue; }
+                ctx.beginPath(); ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(0, 191, 255, ${r.opacity})`; ctx.lineWidth = 2; ctx.stroke();
+            }
+            if (linePoints.length > 1) {
+                for (let i = 1; i < linePoints.length; i++) {
+                    const p1 = linePoints[i - 1]; const p2 = linePoints[i];
+                    let lifeRatio = 1 - (p1.age / 25); if (lifeRatio <= 0) continue;
+                    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = `rgba(0, 210, 255, ${lifeRatio * 0.85})`;
+                    ctx.lineWidth = lifeRatio * 5; ctx.lineCap = 'round'; ctx.stroke();
+                }
+            }
+            for (let i = linePoints.length - 1; i >= 0; i--) {
+                linePoints[i].age++; if (linePoints[i].age > 25) { linePoints.splice(i, 1); }
+            }
+            requestAnimationFrame(animateEffects);
+        }
+        requestAnimationFrame(animateEffects);
+
+        // ================= ✍️ 3. 真实手写签名面板逻辑体系 =================
+        const signLayer = document.getElementById('gacha-sign-layer');
+        const signCanvas = document.getElementById('signature-canvas');
+        const sCtx = signCanvas.getContext('2d');
+        let isSigning = false;
+        let signHasPoints = false; 
+        let pendingGachaTimes = 1; 
+
+        function resizeSignCanvas() {
+            signCanvas.width = signCanvas.offsetWidth;
+            signCanvas.height = signCanvas.offsetHeight;
+            sCtx.strokeStyle = "#1e3a8a"; sCtx.lineWidth = 3.5; sCtx.lineCap = "round"; sCtx.lineJoin = "round";
+        }
+
+        // 纯净画布交互
+        signCanvas.addEventListener('pointerdown', (e) => {
+            e.stopPropagation(); e.preventDefault();
+            isSigning = true; signHasPoints = true;
+            sCtx.beginPath();
+            sCtx.moveTo(e.offsetX, e.offsetY);
+        });
+        signCanvas.addEventListener('pointermove', (e) => {
+            e.stopPropagation(); e.preventDefault();
+            if (!isSigning) return;
+            sCtx.lineTo(e.offsetX, e.offsetY);
+            sCtx.stroke();
+        });
+        window.addEventListener('pointerup', () => isSigning = false);
+        document.getElementById('clear-sign-btn').addEventListener('click', () => {
+            sCtx.clearRect(0,0,signCanvas.width,signCanvas.height);
+            signHasPoints = false;
+        });
+
+        document.getElementById('submit-sign-btn').addEventListener('click', () => {
+            if (!signHasPoints) {
+                showToast("请在文件上划线签名进行身份验证！");
+                return;
+            }
+            signLayer.style.display = 'none';
+            executeGachaAnimation(pendingGachaTimes);
+        });
+
+        // 触发手写流程引导入口
+        function openSignatureFlow(times) {
+            const cost = times === 10 ? 1200 : 120;
+            if (uData.pyroxenes < cost) {
+                showToast("❌ 青辉石不足！请通过战术任务获取奖励。");
+                return;
+            }
+            uData.pyroxenes -= cost;
+            saveAllData();
+            syncLobbyUI();
+            
+            pendingGachaTimes = times;
+            signLayer.style.display = 'flex';
+            setTimeout(resizeSignCanvas, 50);
+        }
+
+        document.getElementById('pull-1-btn').addEventListener('click', () => openSignatureFlow(1));
+        document.getElementById('pull-10-btn').addEventListener('click', () => openSignatureFlow(10));
+
+        // ================= 🎬 抽卡全息载入与跳过控制逻辑 =================
+        let gachaAnimationTimer = [];
+        let activeGachaCallback = null;
+
+        function runGachaAnimation(highestStar, callback) {
+            const animScreen = document.getElementById('gacha-animation-screen');
+            const flashCover = document.getElementById('gacha-flash-cover');
+            const laserContainer = document.getElementById('laser-container');
+            
+            laserContainer.innerHTML = ''; flashCover.className = ''; 
+            animScreen.style.display = 'flex';
+            activeGachaCallback = callback; 
+
+            for(let i=0; i<25; i++) {
+                let laser = document.createElement('div');
+                laser.className = 'laser-beam';
+                laser.style.left = Math.random() * 100 + '%';
+                laser.style.animationDelay = Math.random() * 1.2 + 's';
+                laser.style.width = (Math.random() * 2.5 + 1) + 'px';
+                setTimeout(() => { laser.style.opacity = '0.5'; }, 5);
+                laserContainer.appendChild(laser);
+            }
+
+            gachaAnimationTimer.push(setTimeout(() => { flashCover.classList.add(`flash-star${highestStar}`); }, 2000));
+            gachaAnimationTimer.push(setTimeout(() => { 
+                animScreen.style.display = 'none'; 
+                activeGachaCallback = null;
+                callback(); 
+            }, 2900));
+        }
+
+        // 跳过招募渲染
+        document.getElementById('skip-gacha-btn').addEventListener('click', () => {
+            gachaAnimationTimer.forEach(clearTimeout);
+            gachaAnimationTimer = [];
+            document.getElementById('gacha-animation-screen').style.display = 'none';
+            if (activeGachaCallback) {
+                const cb = activeGachaCallback;
+                activeGachaCallback = null;
+                cb();
+            }
+        });
+
+        // 2. 区分一连与十连结果容器生成
+        function executeGachaAnimation(times) {
+            resultGrid.innerHTML = ''; 
+            let highestStar = 1;
+            let currentResults = [];
+
+            for(let i=0; i<times; i++) {
+                const randomStudent = pool[Math.floor(Math.random() * pool.length)];
+                if(randomStudent.stars > highestStar) highestStar = randomStudent.stars;
+                currentResults.push(randomStudent);
+            }
+
+            runGachaAnimation(highestStar, () => {
+                currentResults.forEach(student => {
+                    const card = document.createElement('div');
+                    card.classList.add('card', `star-${student.stars}`);
+                    card.innerHTML = `
+                        <div class="card-stars">${'★'.repeat(student.stars)}</div>
+                        <div class="card-name">${student.name}</div>
+                        <div style="font-size:9px; opacity:0.5; color:#a1a1aa;">NEW</div>
+                    `;
+                    resultGrid.appendChild(card);
+                });
+                resultModal.style.display = 'flex';
+            });
+        }
+        document.getElementById('close-result-btn').addEventListener('click', () => resultModal.style.display = 'none');
+
+        // ================= ⚔️ 战术任务核心奖励挂载循环 =================
+        document.getElementById('go-work-btn').addEventListener('click', () => workLayer.style.display = 'flex');
+        document.getElementById('back-lobby-from-work').addEventListener('click', () => workLayer.style.display = 'none');
+        document.getElementById('work-story-btn').addEventListener('click', () => showToast("未开放"));
+        
+        document.getElementById('work-mission-btn').addEventListener('click', () => {
+            workLayer.style.display = 'none'; stageLayer.style.display = 'flex'; renderStageNodes();
+        });
+        document.getElementById('back-work-btn').addEventListener('click', () => {
+            stageLayer.style.display = 'none'; workLayer.style.display = 'flex';
+        });
+
+        function renderStageNodes() {
+            stagePanelTitle.textContent = `战术任务 - 第 ${uData.currentArea} 区域`;
+            stageNodesContainer.innerHTML = '';
+
+            for (let i = 1; i <= 5; i++) {
+                const node = document.createElement('div');
+                node.className = 'stage-node';
+
+                if (i === uData.currentStage) {
+                    node.classList.add('active');
+                    node.innerHTML = `<div class="node-number">${uData.currentArea}-${i}</div><div class="node-status">可突击</div>`;
+                    node.addEventListener('click', () => startBattleSimulation(i));
+                } else if (i < uData.currentStage) {
+                    node.innerHTML = `<div class="node-number" style="color:#7f8c8d;">${uData.currentArea}-${i}</div><div class="node-status" style="color:#22c55e;">✔ 重复打</div>`;
+                    node.addEventListener('click', () => startBattleSimulation(i));
+                } else {
+                    node.classList.add('locked');
+                    node.innerHTML = `<div class="node-number">${uData.currentArea}-${i}</div><div class="node-status">🔒 未解锁</div>`;
+                    node.addEventListener('click', () => showToast("请先肃清前面的关卡！"));
+                }
+                stageNodesContainer.appendChild(node);
+            }
+        }
+
+        function startBattleSimulation(stageIndex) {
+            battleOverlay.style.display = 'flex';
+            battleBarFill.style.width = '0%';
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 5;
+                battleBarFill.style.width = `${progress}%`;
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        battleOverlay.style.display = 'none';
+                        completeStageLogic(stageIndex);
+                    }, 200);
+                }
+            }, 40);
+        }
+
+        // 通关50石头增量体系
+        function completeStageLogic(stageIndex) {
+            uData.pyroxenes += 50; 
+            
+            if (stageIndex === uData.currentStage) {
+                if (uData.currentStage < 5) {
+                    uData.currentStage++;
+                    showToast(`关卡 ${uData.currentArea}-${stageIndex} 首通！青辉石+50 💎`);
+                } else {
+                    uData.currentArea++;
+                    uData.currentStage = 1;
+                    showToast(`🎉 肃清第 ${uData.currentArea-1} 战区！晋级战区 ${uData.currentArea}！青辉石+50 💎`);
+                }
+            } else {
+                showToast(`关卡 ${uData.currentArea}-${stageIndex} 重复清剿成功！青辉石+50 💎`);
+            }
+            saveAllData();
+            syncLobbyUI();
+            renderStageNodes();
+        }
+
+        window.addEventListener('resize', monitorOrientation);
+        monitorOrientation();
+    </script>
+</body>
+</html>

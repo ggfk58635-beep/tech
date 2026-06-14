@@ -1,1 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>终极测试游戏</title>
+<style>
+body{font-family:Arial;margin:0;background:#f0f0f0;color:#222}
+.dark{background:#121212;color:#fff}
+header{background:#2196f3;color:#fff;padding:10px;text-align:center}
+.container{max-width:800px;margin:auto;padding:15px}
+.card{background:#fff;padding:15px;border-radius:12px;margin-top:10px}
+.dark .card{background:#222}
+button{padding:10px;margin:5px;border:none;border-radius:8px;cursor:pointer}
+.answer{display:block;width:100%}
+.progress{height:20px;background:#ddd;border-radius:20px;overflow:hidden}
+.bar{height:100%;background:limegreen;width:0%}
+</style>
+</head>
+<body>
 
+<header>
+<h1>🎮 终极测试游戏</h1>
+
+<select id="lang">
+<option value="zh">中文</option>
+<option value="en">English</option>
+<option value="ja">日本語</option>
+</select>
+
+<button onclick="toggleDark()">🌙</button>
+</header>
+
+<div class="container">
+
+<div class="card">
+<h3 id="level">Lv.1</h3>
+XP: <span id="xp">0</span>
+<div class="progress">
+<div class="bar" id="bar"></div>
+</div>
+<p>分数: <span id="score">0</span></p>
+<p>连击: <span id="combo">0</span></p>
+<p>倒计时: <span id="timer">15</span>秒</p>
+</div>
+
+<div class="card">
+<h2 id="question">加载中...</h2>
+<div id="answers"></div>
+</div>
+
+<div class="card">
+<h3>🏆 成就</h3>
+<ul id="achievements"></ul>
+</div>
+
+</div>
+
+<script>
+
+const TEXT={
+zh:{right:"正确！",wrong:"错误！"},
+en:{right:"Correct!",wrong:"Wrong!"},
+ja:{right:"正解！",wrong:"不正解！"}
+};
+
+let lang="zh";
+
+const questions=[];
+
+for(let i=1;i<=100;i++){
+questions.push({
+q:{
+zh:`第${i}题：${i}+${i}=?`,
+en:`Question ${i}: ${i}+${i}=?`,
+ja:`問題${i}: ${i}+${i}=?`
+},
+answers:[
+String(i),
+String(i*2),
+String(i*3),
+String(i*4)
+],
+correct:String(i*2)
+});
+}
+
+questions.push(
+{
+q:{
+zh:"太阳从哪边升起？",
+en:"Where does the sun rise?",
+ja:"太陽はどこから昇る？"
+},
+answers:["东边","西边","南边","北边"],
+correct:"东边"
+}
+);
+
+let save=JSON.parse(
+localStorage.getItem("quizsave")
+||
+'{"xp":0,"level":1,"score":0,"combo":0}'
+);
+
+let current;
+let timer=15;
+let interval;
+
+function saveGame(){
+localStorage.setItem(
+"quizsave",
+JSON.stringify(save)
+);
+}
+
+function updateUI(){
+
+document.getElementById("xp").innerText=save.xp;
+document.getElementById("score").innerText=save.score;
+document.getElementById("combo").innerText=save.combo;
+document.getElementById("level").innerText="Lv."+save.level;
+
+let p=(save.xp%100);
+document.getElementById("bar").style.width=p+"%";
+
+let ach=[];
+
+if(save.score>=1)
+ach.push("完成第一题");
+
+if(save.combo>=5)
+ach.push("5连击");
+
+if(save.level>=5)
+ach.push("达到Lv5");
+
+if(save.level>=10)
+ach.push("达到Lv10");
+
+document.getElementById("achievements").innerHTML=
+ach.map(a=>"<li>"+a+"</li>").join("");
+}
+
+function nextQuestion(){
+
+timer=15;
+
+clearInterval(interval);
+
+interval=setInterval(()=>{
+
+timer--;
+
+document.getElementById("timer").innerText=timer;
+
+if(timer<=0){
+clearInterval(interval);
+save.combo=0;
+loadQuestion();
+}
+
+},1000);
+
+current=
+questions[
+Math.floor(
+Math.random()*questions.length
+)
+];
+
+document.getElementById("question").innerText=
+current.q[lang];
+
+let html="";
+
+current.answers.forEach(a=>{
+
+html+=`
+<button class="answer"
+onclick="answer('${a}')">
+${a}
+</button>
+`;
+
+});
+
+document.getElementById("answers").innerHTML=html;
+
+updateUI();
+saveGame();
+
+}
+
+function answer(v){
+
+clearInterval(interval);
+
+if(v===current.correct){
+
+alert(TEXT[lang].right);
+
+save.score++;
+save.combo++;
+save.xp+=10;
+
+}else{
+
+alert(TEXT[lang].wrong);
+
+save.combo=0;
+
+}
+
+save.level=
+Math.floor(save.xp/100)+1;
+
+nextQuestion();
+
+}
+
+function loadQuestion(){
+nextQuestion();
+}
+
+function toggleDark(){
+document.body.classList.toggle("dark");
+}
+
+document.getElementById("lang")
+.addEventListener("change",e=>{
+lang=e.target.value;
+loadQuestion();
+});
+
+loadQuestion();
+
+</script>
+
+</body>
+  </html>

@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>复古小熊酒馆 - 完美开场双语版</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #5a5a5a; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* 网页语言选择弹窗样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .modal-content {
+            background-color: #ebdcb9;
+            border: 4px solid #2b2b26;
+            padding: 30px 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .modal-title {
+            color: #2b2b26;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 18px;
+            font-weight: bold;
+            line-height: 1.5;
+        }
+        .lang-btn-group {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        .lang-btn {
+            background-color: #2b2b26;
+            color: #ebdcb9;
+            border: 2px solid #2b2b26;
+            padding: 10px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 6px;
+            outline: none;
+            transition: all 0.1s ease;
+        }
+        .lang-btn:hover {
+            background-color: #ebdcb9;
+            color: #2b2b26;
+        }
+        .lang-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 仿 Playdate 黄色掌机外壳 */
+        .console-body {
+            background-color: #ffcc00;
+            width: 360px;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 0 #cc9900, 0 20px 20px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .screen-frame {
+            background-color: #121212;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: inset 0 5px 10px rgba(0,0,0,0.8);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* 1-bit电子墨水屏 Canvas */
+        #gameCanvas {
+            background-color: #ebdcb9; 
+            display: block;
+            width: 100%;
+            height: 240px;
+            border: 4px solid #2b2b26;
+            image-rendering: pixelated;
+        }
+
+        .controls {
+            width: 100%;
+            margin-top: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+            box-sizing: border-box;
+        }
+
+        .dpad {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        .dpad-cross {
+            background: #2b2b26;
+            position: absolute;
+            border-radius: 4px;
+        }
+        .dpad-h { width: 80px; height: 24px; top: 28px; left: 0; }
+        .dpad-v { width: 24px; height: 80px; top: 0; left: 28px; }
+
+        .btn-a {
+            background-color: #2b2b26;
+            color: #ebdcb9;
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            border: 4px solid #fff;
+            font-weight: bold;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #111;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            outline: none;
+            touch-action: none;
+        }
+        .btn-a:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #111;
+            background-color: #40403a;
+        }
+        .btn-label {
+            font-size: 9px;
+            margin-top: 2px;
+            color: #ffcc00;
+        }
+        
+        .tip {
+            color: #2b2b26;
+            font-size: 12px;
+            text-align: center;
+            margin-top: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="modal-overlay" id="langModal">
+        <div class="modal-content">
+            <div class="modal-title">
+                请选择语言<br>Please Select Language
+            </div>
+            <div class="lang-btn-group">
+                <button class="lang-btn" onclick="selectLanguage('zh')">中文</button>
+                <button class="lang-btn" onclick="selectLanguage('en')">English</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="console-body">
+        <div class="screen-frame">
+            <canvas id="gameCanvas" width="320" height="240"></canvas>
+        </div>
+        <div class="tip" id="bottomTip">长按 A 键或 [空格键] 欢快倒水</div>
+        <div class="controls">
+            <div class="dpad">
+                <div class="dpad-cross dpad-h"></div>
+                <div class="dpad-cross dpad-v"></div>
+            </div>
+            <button class="btn-a" id="pourBtn">
+                A
+                <span class="btn-label">POUR</span>
+            </button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const pourBtn = document.getElementById('pourBtn');
+    const bottomTip = document.getElementById('bottomTip');
+
+    // 国际化双语文本词典
+    const i18n = {
+        zh: {
+            tip: "长按 A 键或 [空格键] 欢快倒水",
+            wallet: "袋: $",
+            loadingText: "游戏加载中...",
+            statusEntering: "📢 安排新设备与新顾客中...",
+            statusHappy: "🥰 成功！水杯顺利收走！",
+            statusAngry: "😡 失败了！不符合要求！",
+            statusTarget: "✨ 已过绿线！随时可以松手！",
+            statusPouring: "正在激情接水中...",
+            statusWaiting: "🛎️ 顾客就位，按住 A 开始",
+            overflowText: "$-100 溢出中!!"
+        },
+        en: {
+            tip: "Hold A Button or [Space] to Pour Water",
+            wallet: "Wallet: $",
+            loadingText: "Loading Game...",
+            statusEntering: "📢 Setting up next customer...",
+            statusHappy: "🥰 Success! Drink collected!",
+            statusAngry: "😡 Failed! Doesn't meet orders!",
+            statusTarget: "✨ Target reached! Release A!",
+            statusPouring: "Pouring water...",
+            statusWaiting: "🛎️ Customer ready, hold A",
+            overflowText: "$-100 Overflowing!!"
+        }
+    };
+
+    // 游戏核心状态机
+    let currentLang = 'zh'; 
+    let gameState = 'boot'; // 状态流: 'boot' (等待选语言) -> 'loading' (进度条) -> 'playing' (游戏进行)
+    let loadingProgress = 0;
+
+    let money = 0;
+    let startTime = 0;
+    let elapsedTime = 0;
+    
+    let waterLevel = 0;     
+    let isPouring = false;  
+    let isSpilling = false; 
+    let spillFlash = false; 
+
+    const TARGET_MIN = 75;
+
+    // 水杯控制
+    const cup = {
+        x: 340,         
+        targetX: 220,   
+        y: 178,
+        isTaken: false  
+    };
+
+    // 顾客状态
+    const customer = {
+        x: -60,            
+        targetX: 75,       
+        y: 180,            
+        state: 'entering', 
+        mood: 'neutral',   
+        walkFrame: 0       
+    };
+
+    // 金币到账特效
+    const coinAnim = {
+        active: false,
+        yOffset: 0,    
+        frame: 0,      
+        amount: 0,     
+        life: 0,       
+        maxLife: 55    
+    };
+
+    // 核心函数：语言选择完毕，开启进度条加载
+    function selectLanguage(lang) {
+        currentLang = lang;
+        // 1. 隐藏弹窗
+        document.getElementById('langModal').style.display = 'none';
+        // 2. 更改物理按键下方的外置提示语
+        bottomTip.innerText = i18n[currentLang].tip;
+        // 3. 将游戏状态切入进度条加载模式
+        gameState = 'loading';
+        loadingProgress = 0;
+    }
+
+    // 事件监听
+    function startPour(e) {
+        e.preventDefault();
+        if (gameState === 'playing' && customer.state === 'waiting' && cup.x === cup.targetX) {
+            isPouring = true;
+        }
+    }
+
+    function stopPour(e) {
+        e.preventDefault();
+        if (!isPouring) return;
+        isPouring = false;
+
+        if (customer.state === 'waiting') {
+            if (waterLevel >= TARGET_MIN && !isSpilling) {
+                money += 10;
+                customer.state = 'leaving_happy';
+                customer.mood = 'happy';
+
+                // 成功得分，激活动画
+                coinAnim.active = true;
+                coinAnim.yOffset = 0;
+                coinAnim.frame = 0;
+                coinAnim.amount = 10;
+                coinAnim.life = coinAnim.maxLife;
+            } 
+            else if (waterLevel < TARGET_MIN && waterLevel > 0) {
+                customer.state = 'leaving_angry';
+                customer.mood = 'neutral';
+            }
+            else if (isSpilling) {
+                customer.state = 'leaving_angry';
+                customer.mood = 'shocked';
+                isSpilling = false;
+            }
+        }
+    }
+
+    pourBtn.addEventListener('mousedown', startPour);
+    pourBtn.addEventListener('mouseup', stopPour);
+    pourBtn.addEventListener('mouseleave', stopPour);
+    pourBtn.addEventListener('touchstart', startPour);
+    pourBtn.addEventListener('touchend', stopPour);
+
+    window.addEventListener('keydown', (e) => { if (e.code === 'Space') startPour(e); });
+    window.addEventListener('keyup', (e) => { if (e.code === 'Space') stopPour(e); });
+
+    // 逻辑帧逻辑更新
+    function update() {
+        // 如果处于等待语言选择阶段，冻结任何更新
+        if (gameState === 'boot') return;
+
+        // 如果处于进度条加载阶段，累加进度条数值
+        if (gameState === 'loading') {
+            loadingProgress += 1.2; // 调整此值可以加速/减慢加载
+            if (loadingProgress >= 100) {
+                loadingProgress = 100;
+                gameState = 'playing'; // 进度满了，正式切换到游戏关卡
+                startTime = Date.now(); // 此时才开始启动局内计时器！
+            }
+            return;
+        }
+
+        // 正常的局内游戏逻辑更新
+        elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+
+        if (customer.state === 'entering') {
+            customer.x += 1.5;
+            customer.walkFrame += 0.15;
+            customer.mood = 'neutral';
+
+            if (cup.x > cup.targetX) {
+                cup.x -= 2.95; 
+                if (cup.x < cup.targetX) cup.x = cup.targetX;
+            }
+
+            if (customer.x >= customer.targetX && cup.x === cup.targetX) {
+                customer.x = customer.targetX;
+                customer.state = 'waiting';
+            }
+        } 
+        else if (customer.state === 'leaving_happy') {
+            customer.x += 2;
+            customer.walkFrame += 0.2;
+
+            if (customer.x >= cup.targetX - 20) {
+                cup.isTaken = true;
+            }
+
+            if (cup.isTaken) {
+                cup.x = customer.x + 20; 
+            }
+
+            if (customer.x > 350) {
+                resetNextRound();
+            }
+        }
+        else if (customer.state === 'leaving_angry') {
+            customer.x += 3;
+            customer.walkFrame += 0.3;
+            if (customer.x > 350) {
+                resetNextRound();
+            }
+        }
+
+        if (isPouring && customer.state === 'waiting') {
+            if (!isSpilling) {
+                waterLevel += 0.65; 
+                if (waterLevel >= 100) {
+                    waterLevel = 100;
+                    isSpilling = true;
+                    customer.mood = 'shocked';
+                }
+            } else {
+                money -= 1; 
+                spillFlash = (Math.floor(Date.now() / 100) % 2 === 0);
+            }
+        }
+
+        if (coinAnim.active) {
+            coinAnim.life--;
+            coinAnim.yOffset -= 0.8; 
+            coinAnim.frame += 0.18;  
+            if (coinAnim.life <= 0) {
+                coinAnim.active = false; 
+            }
+        }
+    }
+
+    function resetNextRound() {
+        customer.x = -60;
+        cup.x = 340;
+        cup.isTaken = false;
+        waterLevel = 0;
+        isSpilling = false;
+        customer.state = 'entering';
+    }
+
+    function drawCustomer(x, y, mood, state) {
+        ctx.save();
+        ctx.strokeStyle = '#2b2b26';
+        ctx.fillStyle = '#2b2b26';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+
+        let bounce = 0;
+        if (state === 'entering' || state === 'leaving_happy' || state === 'leaving_angry') {
+            bounce = Math.abs(Math.sin(customer.walkFrame)) * 5;
+        }
+        let headY = y - 55 - bounce;
+        let bodyY = y - bounce;
+
+        // 耳朵
+        ctx.beginPath(); ctx.arc(x - 22, headY - 22, 9, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x + 22, headY - 22, 9, 0, Math.PI * 2); ctx.stroke();
+
+        // 头部
+        ctx.beginPath(); ctx.arc(x, headY, 26, 0, Math.PI * 2);
+        ctx.fillStyle = '#ebdcb9'; ctx.fill(); ctx.stroke();
+
+        // 眼睛
+        ctx.fillStyle = '#2b2b26';
+        ctx.beginPath();
+        if (mood === 'shocked') {
+            ctx.arc(x - 10, headY - 4, 4, 0, Math.PI * 2);
+            ctx.arc(x + 10, headY - 4, 4, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.fillRect(x - 14, headY - 6, 8, 3);
+            ctx.fillRect(x + 6, headY - 6, 8, 3);
+            ctx.arc(x - 10, headY - 2, 2, 0, Math.PI * 2);
+            ctx.arc(x + 10, headY - 2, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 嘴巴
+        ctx.beginPath();
+        if (mood === 'happy') {
+            ctx.arc(x, headY + 6, 6, 0, Math.PI); ctx.stroke();
+        } else if (mood === 'shocked') {
+            ctx.arc(x, headY + 10, 7, 0, Math.PI * 2); ctx.stroke();
+            ctx.moveTo(x - 32, headY - 10); ctx.lineTo(x - 32, headY + 5);
+            ctx.moveTo(x + 32, headY - 10); ctx.lineTo(x + 32, headY + 5);
+            ctx.stroke();
+        } else {
+            ctx.moveTo(x - 7, headY + 10); ctx.lineTo(x + 7, headY + 10); ctx.stroke();
+        }
+
+        // 身体
+        ctx.beginPath();
+        ctx.moveTo(x - 20, headY + 17);
+        ctx.quadraticCurveTo(x - 30, bodyY, x - 30, y);
+        ctx.lineTo(x + 30, y);
+        ctx.quadraticCurveTo(x + 30, bodyY, x + 20, headY + 17);
+        ctx.fillStyle = '#ebdcb9'; ctx.fill(); ctx.stroke();
+
+        // 实时渲染头顶的金币及真实增加数字
+        if (coinAnim.active) {
+            ctx.save();
+            let coinX = x;
+            let coinY = headY - 36 + coinAnim.yOffset;
+
+            ctx.fillStyle = '#2b2b26';
+            ctx.strokeStyle = '#2b2b26';
+            ctx.lineWidth = 2;
+
+            let coinWidth = Math.abs(Math.sin(coinAnim.frame)) * 13; 
+            if (coinWidth < 2) coinWidth = 2; 
+
+            ctx.beginPath();
+            ctx.ellipse(coinX, coinY, coinWidth / 2, 6, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            if (Math.sin(coinAnim.frame) >= 0) {
+                ctx.fill();
+                ctx.strokeStyle = '#ebdcb9';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(coinX, coinY - 3);
+                ctx.lineTo(coinX, coinY + 3);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#2b2b26';
+            ctx.font = 'bold 13px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText(`+${coinAnim.amount}`, coinX, coinY - 12);
+            ctx.restore();
+        }
+
+        ctx.restore();
+    }
+
+    function draw() {
+        // 画布底色打底
+        ctx.fillStyle = '#ebdcb9';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 分支渲染：如果还没有选语言，屏幕处于待机静态状态
+        if (gameState === 'boot') {
+            ctx.fillStyle = '#2b2b26';
+            ctx.font = 'bold 20px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText("BEAR TAVERN", canvas.width / 2, canvas.height / 2 - 10);
+            ctx.font = '11px Courier New';
+            ctx.fillText("Waiting for language...", canvas.width / 2, canvas.height / 2 + 20);
+            return;
+        }
+
+        // 分支渲染：绘制游戏机的加载进度条动画
+        if (gameState === 'loading') {
+            ctx.fillStyle = '#2b2b26';
+            ctx.strokeStyle = '#2b2b26';
+            ctx.font = 'bold 15px Courier New';
+            ctx.textAlign = 'center';
+            // 依据选定语言显示对应的“加载中”
+            ctx.fillText(i18n[currentLang].loadingText, canvas.width / 2, 95);
+
+            // 绘制像素外框
+            ctx.lineWidth = 3;
+            const barW = 200;
+            const barH = 18;
+            const barX = (canvas.width - barW) / 2;
+            const barY = 115;
+            ctx.strokeRect(barX, barY, barW, barH);
+
+            // 绘制内部跑条填充
+            ctx.fillRect(barX + 4, barY + 4, (barW - 8) * (loadingProgress / 100), barH - 8);
+
+            // 数字百分比
+            ctx.font = '12px Courier New';
+            ctx.fillText(`${Math.floor(loadingProgress)}%`, canvas.width / 2, 160);
+            return;
+        }
+
+        // 分支渲染：【游戏正式开始】的主场景渲染
+        ctx.save();
+        ctx.textAlign = 'left'; // 确保局内文本左对齐
+        ctx.strokeStyle = '#2b2b26';
+        ctx.fillStyle = '#2b2b26';
+        ctx.lineWidth = 3;
+
+        // 吧台线
+        ctx.beginPath(); ctx.moveTo(0, 180); ctx.lineTo(320, 180); ctx.stroke();
+
+        // 顾客
+        drawCustomer(customer.x, customer.y, customer.mood, customer.state);
+
+        // 水龙头管道
+        ctx.strokeRect(220, 25, 100, 12); 
+        ctx.strokeRect(205, 37, 30, 12);  
+        ctx.strokeRect(213, 13, 14, 12);  
+
+        // 绘制杯子
+        let cx = cup.x;
+        let cy = cup.y;
+        ctx.beginPath();
+        ctx.moveTo(cx - 20, cy - 63); 
+        ctx.lineTo(cx - 14, cy);      
+        ctx.lineTo(cx + 14, cy);      
+        ctx.lineTo(cx + 20, cy - 63); 
+        ctx.stroke();
+
+        // 变绿线逻辑
+        let isInsideTarget = (waterLevel >= TARGET_MIN && !isSpilling);
+        
+        ctx.save();
+        ctx.setLineDash([3, 3]);
+        if (isInsideTarget && customer.state === 'waiting') {
+            ctx.strokeStyle = '#00aa00'; 
+            ctx.lineWidth = 4; 
+        } else {
+            ctx.strokeStyle = '#2b2b26';
+            ctx.lineWidth = 1;
+        }
+        let lineY = cy - 48; 
+        ctx.beginPath();
+        ctx.moveTo(cx - 18, lineY);
+        ctx.lineTo(cx + 18, lineY);
+        ctx.stroke();
+        ctx.restore();
+
+        // 水流与内部水面
+        let timeSeed = Date.now();
+        let cupWaterHeight = waterLevel * 0.61; 
+
+        if (isPouring && waterLevel < 100) {
+            ctx.save();
+            ctx.fillStyle = '#2b2b26';
+            ctx.beginPath();
+            let startY = 49;
+            let endY = cy - cupWaterHeight;
+            ctx.moveTo(216, startY);
+            for (let currY = startY; currY <= endY; currY += 4) {
+                let waveX = Math.sin(currY * 0.15 + timeSeed * 0.04) * 2; 
+                ctx.lineTo(216 + waveX, currY);
+            }
+            for (let currY = endY; currY >= startY; currY -= 4) {
+                let waveX = Math.sin(currY * 0.15 + timeSeed * 0.04) * 2;
+                ctx.lineTo(224 + waveX, currY);
+            }
+            ctx.closePath(); ctx.fill();
+            ctx.restore();
+        }
+
+        if (waterLevel > 0) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(cx - 19, cy - 63);
+            ctx.lineTo(cx - 14, cy);
+            ctx.lineTo(cx + 14, cy);
+            ctx.lineTo(cx + 19, cy - 63);
+            ctx.clip();
+
+            ctx.fillStyle = '#2b2b26';
+            ctx.beginPath();
+            let surfaceY = cy - cupWaterHeight;
+            ctx.moveTo(cx - 30, cy + 10);
+            ctx.lineTo(cx - 30, surfaceY);
+            
+            for (let currX = cx - 30; currX <= cx + 30; currX += 3) {
+                let amp = isPouring ? 2.5 : 0.6;
+                let waveY = Math.sin(currX * 0.25 + timeSeed * 0.03) * amp;
+                ctx.lineTo(currX, surfaceY + waveY);
+            }
+            ctx.lineTo(cx + 30, cy + 10);
+            ctx.closePath(); ctx.fill();
+            ctx.restore();
+        }
+
+        // 溢出效果
+        if (isSpilling) {
+            ctx.save();
+            ctx.fillStyle = '#2b2b26';
+            ctx.strokeStyle = '#2b2b26';
+            ctx.lineWidth = 3;
+
+            ctx.beginPath();
+            ctx.moveTo(cx - 21, cy - 63); ctx.lineTo(cx - 15, cy);
+            ctx.moveTo(cx + 21, cy - 63); ctx.lineTo(cx + 15, cy);
+            ctx.stroke();
+
+            let flowOffset = (timeSeed / 40) % 20;
+            for (let i = 0; i < 3; i++) {
+                let dropY = cy - 63 + flowOffset + i * 22;
+                if (dropY < cy) {
+                    let percent = (dropY - (cy - 63)) / 63;
+                    let leftX = (cx - 21) + ((cx - 15) - (cx - 21)) * percent;
+                    let rightX = (cx + 21) + ((cx + 15) - (cx + 21)) * percent;
+                    ctx.fillRect(leftX - 2, dropY, 3, 4);
+                    ctx.fillRect(rightX - 1, dropY, 3, 4);
+                }
+            }
+
+            ctx.fillRect(cx - 45, cy - 2, 90, 4); 
+
+            for (let j = 0; j < 8; j++) {
+                let angle = (j * Math.PI / 7) + (Math.sin(timeSeed * 0.8 + j) * 0.15);
+                let speed = 4 + (j % 3);
+                let pLoop = (timeSeed / 180 + j) % 1; 
+                let pX = cx + (j < 4 ? -16 : 16) + Math.cos(angle) * speed * 12 * pLoop;
+                let pY = cy - Math.sin(angle) * speed * 10 * pLoop;
+                if (pY < cy) {
+                    ctx.fillRect(pX, pY, 3, 3);
+                }
+            }
+
+            if (spillFlash) {
+                ctx.fillStyle = '#cc0000';
+                ctx.font = 'bold 16px Courier New';
+                ctx.fillText(i18n[currentLang].overflowText, 165, 45);
+            }
+            ctx.restore();
+        }
+
+        // 动态化多语言 UI 渲染
+        ctx.fillStyle = '#2b2b26';
+        ctx.font = 'bold 15px Courier New';
+        ctx.fillText(`${i18n[currentLang].wallet}${money}`, 15, 220);
+
+        let mins = Math.floor(elapsedTime / 60).toString().padStart(2, '0');
+        let secs = (elapsedTime % 60).toString().padStart(2, '0');
+        ctx.fillText(`⏱️ ${mins}:${secs}`, canvas.width - 95, 220);
+
+        ctx.font = '12px Courier New';
+        if (customer.state === 'entering') {
+            ctx.fillText(i18n[currentLang].statusEntering, 15, 25);
+        } else if (customer.state === 'leaving_happy') {
+            ctx.fillText(i18n[currentLang].statusHappy, 15, 25);
+        } else if (customer.state === 'leaving_angry') {
+            ctx.fillText(i18n[currentLang].statusAngry, 15, 25);
+        } else {
+            if (isInsideTarget) {
+                ctx.save();
+                ctx.fillStyle = '#00aa00';
+                ctx.fillText(i18n[currentLang].statusTarget, 15, 25);
+                ctx.restore();
+            } else {
+                ctx.fillText(isPouring ? i18n[currentLang].statusPouring : i18n[currentLang].statusWaiting, 15, 25);
+            }
+        }
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+</script>
+
+</body>
+</html>

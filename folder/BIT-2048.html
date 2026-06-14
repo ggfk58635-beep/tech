@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pocket 2048 - Refined Juice Edition</title>
+    <style>
+        /* 全局强制禁用所有浏览器的点击蓝色高亮、长按选择及复制框 */
+        * {
+            -webkit-tap-highlight-color: transparent !important;
+            -webkit-touch-callout: none !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
+            box-sizing: border-box;
+            outline: none !important;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #3a3a3a; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        /* 初始语言选择弹窗 */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .modal-content {
+            background-color: #ebdcb9;
+            border: 4px solid #2b2b26;
+            padding: 30px 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .modal-title {
+            color: #2b2b26;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 18px;
+            font-weight: bold;
+            line-height: 1.5;
+        }
+        .lang-btn-group {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        .lang-btn {
+            background-color: #2b2b26;
+            color: #ebdcb9;
+            border: 2px solid #2b2b26;
+            padding: 10px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+        .lang-btn:hover {
+            background-color: #ebdcb9;
+            color: #2b2b26;
+        }
+        .lang-btn:active { transform: scale(0.95); }
+
+        /* 仿 Playdate 亮黄掌机外壳 */
+        .console-body {
+            background-color: #ffcc00;
+            width: 360px;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 0 #cc9900, 0 20px 20px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .screen-frame {
+            background-color: #121212;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: inset 0 5px 10px rgba(0,0,0,0.8);
+            width: 100%;
+        }
+
+        /* 1-bit画质 Canvas */
+        #gameCanvas {
+            background-color: #ebdcb9; 
+            display: block;
+            width: 100%;
+            height: 240px;
+            border: 4px solid #2b2b26;
+            image-rendering: pixelated;
+        }
+
+        .controls {
+            width: 100%;
+            margin-top: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+        }
+
+        /* 十字键 D-Pad */
+        .dpad {
+            position: relative;
+            width: 90px;
+            height: 90px;
+            cursor: pointer;
+        }
+        .dpad-cross {
+            background: #2b2b26;
+            position: absolute;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .dpad-h { width: 90px; height: 28px; top: 31px; left: 0; box-shadow: 0 3px 0 #111; }
+        .dpad-v { width: 28px; height: 90px; top: 0; left: 31px; box-shadow: 3px 0 0 #111; }
+        .dpad-center {
+            position: absolute;
+            width: 28px; height: 28px;
+            top: 31px; left: 31px;
+            background: #1c1c19;
+            z-index: 2;
+            border-radius: 2px;
+        }
+
+        /* RESET 按钮修正 */
+        .btn-a {
+            background-color: #2b2b26;
+            color: #ebdcb9;
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            border: 4px solid #fff;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #111;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .btn-a:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #111;
+        }
+        .btn-label { font-size: 8px; margin-top: 2px; color: #ffcc00; }
+        .tip { color: #2b2b26; font-size: 12px; text-align: center; margin-top: 12px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="modal-overlay" id="langModal">
+        <div class="modal-content">
+            <div class="modal-title">
+                请选择游戏语言<br>Please Select Language
+            </div>
+            <div class="lang-btn-group">
+                <button class="lang-btn" onclick="selectLanguage('zh')">中文</button>
+                <button class="lang-btn" onclick="selectLanguage('en')">English</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="console-body">
+        <div class="screen-frame">
+            <canvas id="gameCanvas" width="320" height="240"></canvas>
+        </div>
+        <div class="tip" id="bottomTip">使用键盘 [方向键] 或点击左侧十字键</div>
+        <div class="controls">
+            <div class="dpad" id="dpadMesh">
+                <div class="dpad-cross dpad-h"></div>
+                <div class="dpad-cross dpad-v"></div>
+                <div class="dpad-center"></div>
+            </div>
+            <button class="btn-a" id="resetBtn">
+                🔄
+                <span class="btn-label">RESET</span>
+            </button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const bottomTip = document.getElementById('bottomTip');
+    const dpadMesh = document.getElementById('dpadMesh');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // 国际化文本
+    const i18n = {
+        zh: {
+            tip: "使用键盘 [方向键] 或点击左侧十字键",
+            loading: "正在注入像素代码...",
+            score: "得分",
+            best: "最高",
+            gameover: "游戏结束!",
+            win: "达成 2048!",
+            restartTip: "按 R 键 或 RESET 重新开始"
+        },
+        en: {
+            tip: "Use [Arrow Keys] or Click D-Pad to Play",
+            loading: "Loading Pixel Blocks...",
+            score: "SCORE",
+            best: "BEST",
+            gameover: "GAME OVER!",
+            win: "YOU WIN (2048)!",
+            restartTip: "Press R or RESET to Restart"
+        }
+    };
+
+    let currentLang = 'zh';
+    let gameState = 'boot'; 
+    let loadingProgress = 0;
+    let isLocalStorageAvailable = true; 
+    let audioCtx = null; 
+
+    // 游戏核心数据
+    let gameBoard = [
+        [0,0,0,0],
+        [0,0,0,0],
+        [0,0,0,0],
+        [0,0,0,0]
+    ];
+    
+    // 果冻弹性动画数据
+    let tileAnims = [];
+    for(let r=0; r<4; r++) {
+        tileAnims[r] = [];
+        for(let c=0; c<4; c++) {
+            tileAnims[r][c] = { scaleX: 1, scaleY: 1 };
+        }
+    }
+
+    let score = 0;
+    let bestScore = 0;
+    
+    let comboCount = 0;
+    let comboTimer = 0;
+    let highscoreTriggered = false;
+    
+    // 方块专属残影数组
+    let tileTrails = [];
+    let particles = [];
+    let screenShake = 0;
+
+    const BOARD_X = 18;
+    const BOARD_Y = 34;
+    const TILE_SIZE = 38;
+    const TILE_GAP = 5;
+
+    // 【原生 Chiptune 音效合成引擎】
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playSound(type, detail = 0) {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        const now = audioCtx.currentTime;
+
+        if (type === 'boot') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(330, now);
+            osc.frequency.setValueAtTime(440, now + 0.08);
+            osc.frequency.setValueAtTime(660, now + 0.16);
+            gainNode.gain.setValueAtTime(0.08, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'move') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(140, now);
+            osc.frequency.exponentialRampToValueAtTime(70, now + 0.05);
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.05);
+            osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'merge') {
+            osc.type = 'square';
+            let power = Math.log2(detail || 2);
+            let baseFreq = 220 + (power * 60); 
+            osc.frequency.setValueAtTime(baseFreq, now);
+            osc.frequency.setValueAtTime(baseFreq * 1.5, now + 0.05);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.18);
+            osc.start(now); osc.stop(now + 0.18);
+        } else if (type === 'combo') {
+            osc.type = 'square';
+            let comboBonus = detail * 100;
+            osc.frequency.setValueAtTime(600 + comboBonus, now);
+            osc.frequency.exponentialRampToValueAtTime(1200 + comboBonus, now + 0.08);
+            gainNode.gain.setValueAtTime(0.08, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.08);
+            osc.start(now); osc.stop(now + 0.08);
+        } else if (type === 'newbest') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(988, now);
+            osc.frequency.setValueAtTime(1318, now + 0.08);
+            gainNode.gain.setValueAtTime(0.08, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.25);
+            osc.start(now); osc.stop(now + 0.25);
+        } else if (type === 'click') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(523, now);
+            gainNode.gain.setValueAtTime(0.06, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.04);
+            osc.start(now); osc.stop(now + 0.04);
+        } else if (type === 'gameover') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.linearRampToValueAtTime(30, now + 0.6);
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.6);
+            osc.start(now); osc.stop(now + 0.6);
+        }
+    }
+
+    // 环境兼容检测
+    try {
+        if (window.localStorage) {
+            bestScore = parseInt(localStorage.getItem('1bit2048_best')) || 0;
+        } else { isLocalStorageAvailable = false; }
+    } catch (e) { isLocalStorageAvailable = false; }
+
+    function selectLanguage(lang) {
+        try { initAudio(); } catch(e){}
+        currentLang = lang;
+        playSound('click');
+        document.getElementById('langModal').style.display = 'none';
+        if (bottomTip) bottomTip.innerText = i18n[currentLang].tip;
+        gameState = 'loading';
+        loadingProgress = 0;
+    }
+
+    function initGame() {
+        try { initAudio(); } catch(e){}
+        playSound('click');
+
+        gameBoard = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+        score = 0;
+        particles = [];
+        tileTrails = [];
+        screenShake = 0;
+        comboCount = 0;
+        comboTimer = 0;
+        highscoreTriggered = false;
+        
+        for(let r=0; r<4; r++) {
+            for(let c=0; c<4; c++) {
+                tileAnims[r][c].scaleX = 1;
+                tileAnims[r][c].scaleY = 1;
+            }
+        }
+        spawnRandomTile(); spawnRandomTile();
+        gameState = 'playing';
+    }
+
+    function spawnRandomTile() {
+        let emptyCells = [];
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                if (gameBoard[r][c] === 0) emptyCells.push({r, c});
+            }
+        }
+        if (emptyCells.length > 0) {
+            let cell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            gameBoard[cell.r][cell.c] = Math.random() < 0.9 ? 2 : 4;
+            tileAnims[cell.r][cell.c].scaleX = 0.1;
+            tileAnims[cell.r][cell.c].scaleY = 0.1;
+        }
+    }
+
+    function processLine(line) {
+        let filtered = line.filter(x => x !== 0);
+        let newLine = [];
+        let scoreGain = 0;
+        let mergedValues = [];
+
+        for (let i = 0; i < filtered.length; i++) {
+            if (filtered[i] === filtered[i+1] && filtered[i] !== undefined) {
+                let combined = filtered[i] * 2;
+                newLine.push(combined);
+                scoreGain += combined;
+                mergedValues.push({ idx: newLine.length - 1, val: combined });
+                i++;
+            } else {
+                newLine.push(filtered[i]);
+            }
+        }
+        while (newLine.length < 4) newLine.push(0);
+        return { line: newLine, score: scoreGain, merged: mergedValues };
+    }
+
+    function handleMove(dir) {
+        if (gameState !== 'playing') return;
+        try { initAudio(); } catch(e){}
+
+        let moved = false;
+        let totalScoreGain = 0;
+        let prevBoard = gameBoard.map(row => [...row]);
+        
+        let localMergeCount = 0; 
+        let lastMergedVal = 2;
+
+        if (dir === 'left') {
+            for (let r = 0; r < 4; r++) {
+                let res = processLine(gameBoard[r]);
+                gameBoard[r] = res.line; totalScoreGain += res.score;
+                res.merged.forEach(m => {
+                    localMergeCount++; lastMergedVal = m.val;
+                    triggerSquashStretch(r, m.idx, 'h'); spawnFragments(r, m.idx);
+                });
+            }
+        } else if (dir === 'right') {
+            for (let r = 0; r < 4; r++) {
+                let line = [gameBoard[r][3], gameBoard[r][2], gameBoard[r][1], gameBoard[r][0]];
+                let res = processLine(line);
+                gameBoard[r] = [res.line[3], res.line[2], res.line[1], res.line[0]]; totalScoreGain += res.score;
+                res.merged.forEach(m => {
+                    localMergeCount++; lastMergedVal = m.val; let actualC = 3 - m.idx;
+                    triggerSquashStretch(r, actualC, 'h'); spawnFragments(r, actualC);
+                });
+            }
+        } else if (dir === 'up') {
+            for (let c = 0; c < 4; c++) {
+                let line = [gameBoard[0][c], gameBoard[1][c], gameBoard[2][c], gameBoard[3][c]];
+                let res = processLine(line);
+                gameBoard[0][c] = res.line[0]; gameBoard[1][c] = res.line[1];
+                gameBoard[2][c] = res.line[2]; gameBoard[3][c] = res.line[3]; totalScoreGain += res.score;
+                res.merged.forEach(m => {
+                    localMergeCount++; lastMergedVal = m.val;
+                    triggerSquashStretch(m.idx, c, 'v'); spawnFragments(m.idx, c);
+                });
+            }
+        } else if (dir === 'down') {
+            for (let c = 0; c < 4; c++) {
+                let line = [gameBoard[3][c], gameBoard[2][c], gameBoard[1][c], gameBoard[0][c]];
+                let res = processLine(line);
+                gameBoard[3][c] = res.line[0]; gameBoard[2][c] = res.line[1];
+                gameBoard[1][c] = res.line[2]; gameBoard[0][c] = res.line[3]; totalScoreGain += res.score;
+                res.merged.forEach(m => {
+                    localMergeCount++; lastMergedVal = m.val; let actualR = 3 - m.idx;
+                    triggerSquashStretch(actualR, c, 'v'); spawnFragments(actualR, c);
+                });
+            }
+        }
+
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                if (gameBoard[r][c] !== prevBoard[r][c]) moved = true;
+            }
+        }
+
+        if (moved) {
+            score += totalScoreGain;
+
+            // 【注入方块专属残影逻辑】移动成功时，为每个生存方块在其移动反方向拉出残影
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 4; c++) {
+                    if (gameBoard[r][c] !== 0) {
+                        tileTrails.push({
+                            x: BOARD_X + TILE_GAP + c * (TILE_SIZE + TILE_GAP),
+                            y: BOARD_Y + TILE_GAP + r * (TILE_SIZE + TILE_GAP),
+                            dir: dir,
+                            life: 8,
+                            maxLife: 8,
+                            type: 'long'
+                        });
+                        tileTrails.push({
+                            x: BOARD_X + TILE_GAP + c * (TILE_SIZE + TILE_GAP),
+                            y: BOARD_Y + TILE_GAP + r * (TILE_SIZE + TILE_GAP),
+                            dir: dir,
+                            life: 4,
+                            maxLife: 4,
+                            type: 'short'
+                        });
+                    }
+                }
+            }
+
+            if (localMergeCount > 0) {
+                if (localMergeCount >= 2) {
+                    comboCount++; comboTimer = 45; playSound('combo', comboCount); screenShake = 10;
+                } else {
+                    playSound('merge', lastMergedVal); screenShake = 5;
+                }
+            } else {
+                playSound('move'); comboCount = 0; 
+            }
+
+            if (score > bestScore && isLocalStorageAvailable) {
+                if(!highscoreTriggered && bestScore > 0) {
+                    playSound('newbest'); highscoreTriggered = true;
+                }
+                bestScore = score;
+                try { localStorage.setItem('1bit2048_best', bestScore); } catch (e) {}
+            }
+
+            spawnRandomTile(); checkGameOver();
+        } else {
+            comboCount = 0;
+        }
+    }
+
+    function triggerSquashStretch(r, c, orientation) {
+        if (orientation === 'h') {
+            tileAnims[r][c].scaleX = 1.45; tileAnims[r][c].scaleY = 0.65;
+        } else {
+            tileAnims[r][c].scaleX = 0.65; tileAnims[r][c].scaleY = 1.45;
+        }
+    }
+
+    function spawnFragments(gridR, gridC) {
+        let cx = BOARD_X + TILE_GAP + gridC * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+        let cy = BOARD_Y + TILE_GAP + gridR * (TILE_SIZE + TILE_GAP) + TILE_SIZE / 2;
+        for(let i=0; i<12; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let speed = 1.5 + Math.random() * 3.5;
+            particles.push({
+                x: cx, y: cy,
+                size: 2 + Math.floor(Math.random() * 3),
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 1.5,
+                life: 25 + Math.random() * 15
+            });
+        }
+    }
+
+    function checkGameOver() {
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                if (gameBoard[r][c] === 0) return;
+            }
+        }
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                if (c < 3 && gameBoard[r][c] === gameBoard[r][c+1]) return;
+                if (r < 3 && gameBoard[r][c] === gameBoard[r+1][c]) return;
+            }
+        }
+        gameState = 'gameover'; playSound('gameover');
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (gameState !== 'playing') {
+            if (e.code === 'KeyR') initGame(); return;
+        }
+        if (e.code === 'ArrowLeft' || e.code === 'KeyA') handleMove('left');
+        if (e.code === 'ArrowRight' || e.code === 'KeyD') handleMove('right');
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') handleMove('up');
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') handleMove('down');
+    });
+
+    function handleDpadClick(e) {
+        const rect = dpadMesh.getBoundingClientRect();
+        let touchX = e.clientX || (e.touches && e.touches[0].clientX);
+        let touchY = e.clientY || (e.touches && e.touches[0].clientY);
+        if(!touchX) return;
+        
+        const clickX = touchX - rect.left - rect.width / 2;
+        const clickY = touchY - rect.top - rect.height / 2;
+        
+        if (Math.abs(clickX) > Math.abs(clickY)) {
+            if (clickX > 15) handleMove('right'); else if (clickX < -15) handleMove('left');
+        } else {
+            if (clickY > 15) handleMove('down'); else if (clickY < -15) handleMove('up');
+        }
+    }
+    
+    dpadMesh.addEventListener('mousedown', handleDpadClick);
+    dpadMesh.addEventListener('touchstart', (e) => { 
+        try { e.preventDefault(); } catch(err){}
+        handleDpadClick(e); 
+    }, { passive: false });
+    
+    resetBtn.addEventListener('click', initGame);
+
+    function draw1BitTile(val, x, y, size) {
+        ctx.strokeStyle = '#2b2b26'; ctx.fillStyle = '#2b2b26'; ctx.lineWidth = 2;
+
+        if (val === 0) {
+            ctx.fillRect(x, y, 2, 2); ctx.fillRect(x + size - 2, y, 2, 2);
+            ctx.fillRect(x, y + size - 2, 2, 2); ctx.fillRect(x + size - 2, y + size - 2, 2, 2);
+            return;
+        }
+
+        switch(val) {
+            case 2: ctx.strokeRect(x + 1, y + 1, size - 2, size - 2); break;
+            case 4:
+                ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+                ctx.fillRect(x + 4, y + 4, 3, 3); ctx.fillRect(x + size - 7, y + 4, 3, 3);
+                ctx.fillRect(x + 4, y + size - 7, 3, 3); ctx.fillRect(x + size - 7, y + size - 7, 3, 3);
+                break;
+            case 8:
+                ctx.strokeRect(x + 1, y + 1, size - 2, size - 2); ctx.strokeRect(x + 4, y + 4, size - 8, size - 8);
+                break;
+            case 16:
+                ctx.lineWidth = 4; ctx.strokeRect(x + 2, y + 2, size - 4, size - 4);
+                break;
+            case 32:
+                ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+                ctx.setLineDash([2, 2]); ctx.strokeRect(x + 4, y + 4, size - 8, size - 8); ctx.setLineDash([]);
+                break;
+            case 64:
+                ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+                for(let p=6; p<size-6; p+=4) {
+                    ctx.fillRect(x + p, y + 3, 1, 2); ctx.fillRect(x + p, y + size - 5, 1, 2);
+                }
+                break;
+            case 128: ctx.fillRect(x, y, size, size); break;
+            case 256:
+                ctx.fillRect(x, y, size, size); ctx.strokeStyle = '#ebdcb9'; ctx.strokeRect(x + 3, y + 3, size - 6, size - 6);
+                break;
+            case 512:
+                ctx.fillRect(x, y, size, size); ctx.fillStyle = '#ebdcb9';
+                ctx.fillRect(x + 3, y + 3, 3, 3); ctx.fillRect(x + size - 6, y + 3, 3, 3);
+                ctx.fillRect(x + 3, y + size - 6, 3, 3); ctx.fillRect(x + size - 6, y + size - 6, 3, 3);
+                break;
+            case 1024:
+                ctx.fillRect(x, y, size, size); ctx.strokeStyle = '#ebdcb9'; ctx.lineWidth = 3; ctx.strokeRect(x + 4, y + 4, size - 8, size - 8);
+                break;
+            case 2048:
+                let flash = Math.floor(Date.now() / 150) % 2 === 0;
+                if (flash) {
+                    ctx.fillRect(x, y, size, size); ctx.strokeStyle = '#ebdcb9'; ctx.strokeRect(x + 2, y + 2, size - 4, size - 4);
+                } else {
+                    ctx.strokeRect(x + 1, y + 1, size - 2, size - 2); ctx.strokeRect(x + 4, y + 4, size - 8, size - 8); ctx.fillRect(x+6, y+6, size-12, size-12);
+                }
+                break;
+        }
+
+        ctx.save();
+        ctx.fillStyle = (val >= 128 && !(val===2048 && Math.floor(Date.now() / 150) % 2 !== 0)) ? '#ebdcb9' : '#2b2b26';
+        let fontSize = 16;
+        if (val >= 1024) fontSize = 11; else if (val >= 100) fontSize = 13;
+        
+        ctx.font = `bold ${fontSize}px Courier New`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(val, x + size / 2, y + size / 2 + 1); ctx.restore();
+    }
+
+    function update() {
+        if (gameState === 'boot') return;
+        if (gameState === 'loading') {
+            loadingProgress += 3; 
+            if (loadingProgress >= 100) { initGame(); try { playSound('boot'); } catch(e){} }
+            return;
+        }
+
+        for(let r=0; r<4; r++) {
+            for(let c=0; c<4; c++) {
+                let anim = tileAnims[r][c];
+                anim.scaleX += (1 - anim.scaleX) * 0.22; anim.scaleY += (1 - anim.scaleY) * 0.22;
+            }
+        }
+
+        // 方块专属残影生命周期计算
+        for(let i = tileTrails.length - 1; i >= 0; i--) {
+            tileTrails[i].life--;
+            if(tileTrails[i].life <= 0) tileTrails.splice(i, 1);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.vy += 0.22; p.life--;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        if (comboTimer > 0) comboTimer--;
+        if (screenShake > 0) screenShake -= 0.5;
+        if (screenShake < 0) screenShake = 0;
+    }
+
+    function draw() {
+        ctx.fillStyle = '#ebdcb9'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (gameState === 'boot') {
+            ctx.fillStyle = '#2b2b26'; ctx.font = 'bold 22px Courier New'; ctx.textAlign = 'center';
+            ctx.fillText("POCKET 2048", canvas.width / 2, canvas.height / 2 - 10);
+            ctx.font = '11px Courier New'; ctx.fillText("Waiting for language...", canvas.width / 2, canvas.height / 2 + 25);
+            return;
+        }
+
+        if (gameState === 'loading') {
+            ctx.fillStyle = '#2b2b26'; ctx.font = 'bold 14px Courier New'; ctx.textAlign = 'center';
+            ctx.fillText(i18n[currentLang].loading, canvas.width / 2, 100);
+            const bw = 180, bh = 16; const bx = (canvas.width - bw) / 2, by = 120;
+            ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+            ctx.fillRect(bx + 4, by + 4, (bw - 8) * (loadingProgress / 100), bh - 8);
+            return;
+        }
+
+        ctx.save();
+        if (screenShake > 0) {
+            ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+        }
+
+        // 🟢【全新渲染层】绘制各个方块背后的 1-Bit 虚线残影
+        tileTrails.forEach(t => {
+            let offsetX = 0, offsetY = 0;
+            // 残影拉伸步长
+            let dist = t.type === 'long' ? 14 : 7;
+            if (t.dir === 'left') offsetX = dist * (t.life / t.maxLife);
+            if (t.dir === 'right') offsetX = -dist * (t.life / t.maxLife);
+            if (t.dir === 'up') offsetY = dist * (t.life / t.maxLife);
+            if (t.dir === 'down') offsetY = -dist * (t.life / t.maxLife);
+
+            ctx.save();
+            ctx.strokeStyle = '#2b2b26';
+            ctx.lineWidth = 1;
+            // 利用不同的像素点阵虚线模拟半透明质感
+            if (t.type === 'long') ctx.setLineDash([1, 2]); else ctx.setLineDash([2, 1]);
+            ctx.strokeRect(t.x + offsetX, t.y + offsetY, TILE_SIZE, TILE_SIZE);
+            ctx.restore();
+        });
+
+        // 游戏棋盘边界
+        ctx.strokeStyle = '#2b2b26'; ctx.lineWidth = 3;
+        const totalSize = 4 * TILE_SIZE + 5 * TILE_GAP;
+        ctx.strokeRect(BOARD_X, BOARD_Y, totalSize, totalSize);
+
+        // 遍历绘制带物理形变各色方块
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                let val = gameBoard[r][c];
+                let tx = BOARD_X + TILE_GAP + c * (TILE_SIZE + TILE_GAP);
+                let ty = BOARD_Y + TILE_GAP + r * (TILE_SIZE + TILE_GAP);
+                let sx = tileAnims[r][c].scaleX; let sy = tileAnims[r][c].scaleY;
+
+                if (sx !== 1 || sy !== 1) {
+                    ctx.save(); ctx.translate(tx + TILE_SIZE/2, ty + TILE_SIZE/2); ctx.scale(sx, sy);
+                    draw1BitTile(val, -TILE_SIZE/2, -TILE_SIZE/2, TILE_SIZE); ctx.restore();
+                } else {
+                    draw1BitTile(val, tx, ty, TILE_SIZE);
+                }
+            }
+        }
+
+        // 绘制下坠碎片
+        particles.forEach(p => {
+            if (p.life > 10 || Math.floor(Date.now() / 30) % 2 === 0) { 
+                ctx.fillStyle = '#2b2b26'; ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+            }
+        });
+
+        // 侧边UI面板
+        ctx.fillStyle = '#2b2b26'; ctx.textAlign = 'left';
+        ctx.font = 'bold 15px Courier New'; ctx.fillText("POCKET", 205, 52);
+        ctx.font = 'bold 22px Courier New'; ctx.fillText("2048", 205, 74);
+
+        ctx.lineWidth = 2; ctx.strokeRect(205, 95, 98, 42);
+        ctx.font = 'bold 10px Courier New'; ctx.fillText(i18n[currentLang].score, 212, 110);
+        ctx.font = 'bold 15px Courier New'; ctx.fillText(score, 212, 128);
+
+        ctx.strokeRect(205, 148, 98, 42);
+        ctx.font = 'bold 10px Courier New'; ctx.fillText(i18n[currentLang].best, 212, 163);
+        ctx.font = 'bold 15px Courier New'; 
+        let bestToShow = isLocalStorageAvailable ? bestScore : "----";
+        ctx.fillText(bestToShow, 212, 181);
+
+        if (comboTimer > 0 && comboCount >= 2) {
+            ctx.save(); ctx.fillStyle = '#2b2b26'; ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center';
+            let bounceY = Math.sin(Date.now() / 50) * 2;
+            ctx.fillText(`${comboCount}X COMBO!`, BOARD_X + totalSize/2, BOARD_Y + totalSize + 18 + bounceY);
+            ctx.restore();
+        }
+
+        if (gameState === 'gameover') {
+            ctx.fillStyle = 'rgba(235, 220, 185, 0.9)'; ctx.fillRect(BOARD_X, BOARD_Y, totalSize, totalSize);
+            ctx.fillStyle = '#2b2b26'; ctx.font = 'bold 16px Courier New'; ctx.textAlign = 'center';
+            ctx.fillText(i18n[currentLang].gameover, BOARD_X + totalSize/2, BOARD_Y + totalSize/2 - 10);
+            ctx.font = '9px Courier New'; ctx.fillText(i18n[currentLang].restartTip, BOARD_X + totalSize/2, BOARD_Y + totalSize/2 + 15);
+        }
+
+        ctx.restore();
+
+        // LCD 点阵网格层
+        ctx.fillStyle = 'rgba(43, 43, 38, 0.05)';
+        for(let y = 0; y < canvas.height; y += 2) ctx.fillRect(0, y, canvas.width, 1);
+        for(let x = 0; x < canvas.width; x += 2) ctx.fillRect(x, 0, 1, canvas.height);
+    }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    gameLoop();
+</script>
+
+</body>
+</html>

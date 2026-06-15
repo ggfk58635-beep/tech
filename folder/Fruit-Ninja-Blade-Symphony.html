@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>水果刀 🍉💣⚡</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #0d0804;
+            font-family: 'Microsoft YaHei', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #gameCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+        }
+        #uiContainer {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            display: flex;
+            flex-direction: row;
+            gap: 30px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .board-ui {
+            color: #FFD54F;
+            font-size: 34px;
+            font-weight: 900;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.9), 0 0 15px rgba(255,213,79,0.3);
+            letter-spacing: 2px;
+        }
+        #livesBoard {
+            font-size: 34px;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.9));
+            letter-spacing: 4px;
+        }
+        
+        /* 覆盖层主菜单及结算界面 */
+        .overlay-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(13, 8, 4, 0.96);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: #fff;
+            text-align: center;
+        }
+        .overlay-screen h1 {
+            font-size: 52px;
+            color: #FFD54F;
+            margin-bottom: 20px;
+            text-shadow: 0 0 25px rgba(255,213,79,0.6);
+            font-weight: 900;
+        }
+        .menu-btn {
+            padding: 14px 45px;
+            font-size: 20px;
+            font-weight: bold;
+            margin: 10px;
+            cursor: pointer;
+            background: #FF9800;
+            border: none;
+            color: white;
+            border-radius: 30px;
+            box-shadow: 0 5px 15px rgba(255,152,0,0.4);
+            transition: all 0.2s ease;
+            min-width: 220px;
+        }
+        .menu-btn:hover {
+            background: #F57C00;
+            transform: scale(1.06);
+        }
+        .btn-sub {
+            background: #4CAF50;
+            box-shadow: 0 5px 15px rgba(76,175,80,0.4);
+        }
+        .btn-sub:hover { background: #388E3C; }
+        .btn-back {
+            background: #757575;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .btn-back:hover { background: #616161; }
+        
+        /* 🛠️ 右下角专属调优返回按钮，彻底规避时间阻挡 */
+        #backToMenuBtn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            z-index: 110;
+            min-width: auto;
+            padding: 12px 28px;
+            font-size: 16px;
+            border-radius: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        #propStatus {
+            position: absolute;
+            top: 90px;
+            left: 30px;
+            font-size: 22px;
+            font-weight: bold;
+            color: #00E5FF;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="languageScreen" class="overlay-screen">
+        <h1>水果刀 / Fruit Knife</h1>
+        <p style="font-size: 20px; color: #BCAAA4; margin-bottom: 30px;">请选择语言 / Select Language</p>
+        <div>
+            <button class="menu-btn" onclick="selectLanguage('zh')">简体中文</button>
+            <button class="menu-btn" onclick="selectLanguage('en')">English</button>
+        </div>
+    </div>
+
+    <div id="mainMenuScreen" class="overlay-screen" style="display: none;">
+        <h1 id="menuTitle">水果刀</h1>
+        
+        <div id="highScoreBoard" style="background: rgba(255,255,255,0.07); padding: 16px 28px; border-radius: 18px; margin-bottom: 25px; font-size: 16px; border: 1px solid rgba(255,255,255,0.12); text-align: left; min-width: 260px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+            <div style="color: #FFD54F; font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 18px; letter-spacing: 1px;" id="hsTitle">🏆 历史最高得分</div>
+            <div id="hsClassic" style="margin: 4px 0; color: #E0E0E0;">经典模式: 0</div>
+            <div id="hsCountdown" style="margin: 4px 0; color: #E0E0E0;">倒计时模式: 0</div>
+            <div id="hsProp" style="margin: 4px 0; color: #E0E0E0;">道具模式: 0</div>
+            <div id="hsInvincible" style="margin: 4px 0; color: #E0E0E0;">无敌模式: 0</div>
+        </div>
+
+        <div id="primaryMenu">
+            <button class="menu-btn" id="btnClassic" onclick="startByMode('classic')">经典模式</button>
+            <button class="menu-btn" id="btnMore" onclick="toggleMoreModes(true)">更多模式 ↓</button>
+        </div>
+
+        <div id="moreModesMenu" style="display: none;">
+            <button class="menu-btn btn-sub" id="btnCountdown" onclick="startByMode('countdown')">倒计时模式</button>
+            <button class="menu-btn btn-sub" id="btnProps" onclick="startByMode('prop')">道具模式</button>
+            <button class="menu-btn btn-sub" id="btnInvincible" onclick="startByMode('invincible')">无敌模式</button>
+            <br>
+            <button class="menu-btn btn-back" id="btnBack" onclick="toggleMoreModes(false)">返回主菜单</button>
+        </div>
+    </div>
+
+    <button id="backToMenuBtn" class="menu-btn btn-back" style="display: none;" onclick="returnToMenu()">返回主菜单</button>
+
+    <div id="gameOverScreen" class="overlay-screen" style="display: none; background: rgba(13, 8, 4, 0.92);">
+        <h1 id="gameOverTitle" style="color: #FFC107;">游戏结束</h1>
+        <p style="font-size: 28px; color: #fff; margin-bottom: 30px;"><span id="finalScoreLabel">最终得分: </span><span id="finalScore" style="color: #FFD54F; font-weight: 900;">0</span></p>
+        <button class="menu-btn" id="btnGameOverBack" onclick="returnToMenu()">返回主菜单</button>
+    </div>
+
+    <div id="uiContainer">
+        <div class="board-ui" id="scoreBoard"><span id="scoreLabel">得分: </span><span id="score">0</span></div>
+        <div class="board-ui" id="timerBoard" style="display: none;"><span id="timerLabel">时间: </span><span id="timeVal">60</span>s</div>
+        <div id="livesBoard">❤️❤️❤️</div>
+    </div>
+    <div id="propStatus"></div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // ==========================================
+        // 🌐 全局本地化字典与配置（更名：水果刀）
+        // ==========================================
+        const i18n = {
+            zh: {
+                title: "水果刀",
+                classic: "经典模式",
+                more: "更多模式 ↓",
+                countdown: "倒计时模式",
+                props: "道具模式",
+                invincible: "无敌模式",
+                back: "返回主菜单",
+                score: "得分: ",
+                time: "时间: ",
+                gameOver: "游戏结束",
+                finalScore: "最终得分: ",
+                statusFreeze: "❄️ 冰冻时间: ",
+                statusSlow: "⏳ 慢速时间: ",
+                statusFrenzy: "🔥 狂热暴兵: ",
+                statusInvincible: "✨ 无敌光环中",
+                hsTitle: "🏆 历史最高得分"
+            },
+            en: {
+                title: "Fruit Knife",
+                classic: "Classic Mode",
+                more: "More Modes ↓",
+                countdown: "Countdown Mode",
+                props: "Prop Mode",
+                invincible: "Invincible Mode",
+                back: "Back to Menu",
+                score: "Score: ",
+                time: "Time: ",
+                gameOver: "GAME OVER",
+                finalScore: "Final Score: ",
+                statusFreeze: "❄️ Frozen: ",
+                statusSlow: "⏳ Slow-Mo: ",
+                statusFrenzy: "🔥 Frenzy Spawning: ",
+                statusInvincible: "✨ Invincible Mode",
+                hsTitle: "🏆 High Scores"
+            }
+        };
+        let currentLang = 'zh';
+
+        // 核心高分缓存结构
+        let highScores = { classic: 0, countdown: 0, prop: 0, invincible: 0 };
+
+        function loadHighScores() {
+            const saved = localStorage.getItem('fruitKnife_highScores');
+            if (saved) {
+                try { highScores = JSON.parse(saved); } catch(e) {}
+            }
+            updateHighScoreUI();
+        }
+
+        function updateHighScoreUI() {
+            const isZh = currentLang === 'zh';
+            document.getElementById('hsTitle').innerText = i18n[currentLang].hsTitle;
+            document.getElementById('hsClassic').innerText = (isZh ? '经典模式: ' : 'Classic: ') + (highScores.classic || 0);
+            document.getElementById('hsCountdown').innerText = (isZh ? '倒计时模式: ' : 'Countdown: ') + (highScores.countdown || 0);
+            document.getElementById('hsProp').innerText = (isZh ? '道具模式: ' : 'Prop Mode: ') + (highScores.prop || 0);
+            document.getElementById('hsInvincible').innerText = (isZh ? '无敌模式: ' : 'Invincible: ') + (highScores.invincible || 0);
+        }
+
+        function selectLanguage(lang) {
+            currentLang = lang;
+            document.title = i18n[lang].title;
+            document.getElementById('menuTitle').innerText = i18n[lang].title;
+            document.getElementById('btnClassic').innerText = i18n[lang].classic;
+            document.getElementById('btnMore').innerText = i18n[lang].more;
+            document.getElementById('btnCountdown').innerText = i18n[lang].countdown;
+            document.getElementById('btnProps').innerText = i18n[lang].props;
+            document.getElementById('btnInvincible').innerText = i18n[lang].invincible;
+            document.getElementById('btnBack').innerText = i18n[lang].back;
+            document.getElementById('backToMenuBtn').innerText = i18n[lang].back;
+            document.getElementById('btnGameOverBack').innerText = i18n[lang].back;
+            document.getElementById('scoreLabel').innerText = i18n[lang].score;
+            document.getElementById('timerLabel').innerText = i18n[lang].time;
+            document.getElementById('gameOverTitle').innerText = i18n[lang].gameOver;
+            document.getElementById('finalScoreLabel').innerText = i18n[lang].finalScore;
+
+            updateHighScoreUI();
+            document.getElementById('languageScreen').style.display = 'none';
+            document.getElementById('mainMenuScreen').style.display = 'flex';
+        }
+
+        function toggleMoreModes(showMore) {
+            document.getElementById('primaryMenu').style.display = showMore ? 'none' : 'block';
+            document.getElementById('moreModesMenu').style.display = showMore ? 'block' : 'none';
+        }
+
+        // ==========================================
+        // 🎵 声音合成管理器
+        // ==========================================
+        class SoundGenerator {
+            constructor() { this.ctx = null; this.bgmInterval = null; this.bgmStep = 0; }
+            init() {
+                if (this.ctx) return;
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContextClass();
+                this.startBGM();
+            }
+            startBGM() {
+                const pentatonic = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25]; 
+                const playNote = (freq, time, duration, vol = 0.08) => {
+                    const osc = this.ctx.createOscillator();
+                    const gainNode = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, time);
+                    gainNode.gain.setValueAtTime(vol, time);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, time + duration);
+                    osc.connect(gainNode); gainNode.connect(this.ctx.destination);
+                    osc.start(time); osc.stop(time + duration);
+                };
+                const scheduleNextBeats = () => {
+                    if (!gameActive || gameOver) {
+                        this.bgmInterval = setTimeout(scheduleNextBeats, 300);
+                        return;
+                    }
+                    const tempScale = globalTimeScale; 
+                    const stepTime = 0.28 / tempScale;
+                    const now = this.ctx.currentTime;
+                    if (this.bgmStep % 4 === 0) playNote(pentatonic[this.bgmStep % 5], now, 1.2 / tempScale, 0.05); 
+                    if (this.bgmStep % 2 === 0) playNote(pentatonic[(this.bgmStep * 3) % pentatonic.length] * 2, now + 0.1, 0.4 / tempScale, 0.03); 
+                    this.bgmStep++;
+                    this.bgmInterval = setTimeout(scheduleNextBeats, stepTime * 1000);
+                };
+                scheduleNextBeats();
+            }
+            playSlice() {} 
+            playTink() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(1200 + Math.random() * 300, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+                gain.gain.setValueAtTime(0.25, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                osc.connect(gain); gain.connect(this.ctx.destination); osc.start(now); osc.stop(now + 0.09);
+            }
+            playExplosion() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(10, now + 0.6);
+                gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                osc.connect(gain); gain.connect(this.ctx.destination); osc.start(now); osc.stop(now + 0.61);
+                
+                const bufferSize = this.ctx.sampleRate * 0.5;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = this.ctx.createBufferSource(); noise.buffer = buffer;
+                const filter = this.ctx.createBiquadFilter(); filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(800, now); filter.frequency.linearRampToValueAtTime(100, now + 0.5);
+                const noiseGain = this.ctx.createGain(); noiseGain.gain.setValueAtTime(0.4, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(this.ctx.destination);
+                noise.start(now); noise.stop(now + 0.51);
+            }
+        }
+        const sound = new SoundGenerator();
+
+        // ==========================================
+        // 🎮 画布基础环境定义
+        // ==========================================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('livesBoard');
+        const timerBoard = document.getElementById('timerBoard');
+        const timeValEl = document.getElementById('timeVal');
+        const propStatusEl = document.getElementById('propStatus');
+
+        let gameActive = false;
+        let gameMode = 'classic'; 
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+        let gameTimer = 60; 
+        let frameCount = 0;
+
+        let activeProp = 'none'; 
+        let propTimeLeft = 0;   
+        let frenzyCooldown = 0;
+
+        let gameObjects = []; 
+        let fruitHalves = []; 
+        let fastJuiceParticles = []; 
+        let boardStains = [];        
+        let bladeTrail = [];  
+        let floatingTexts = []; 
+        let isSlicing = false;
+        let lastWorldPoint = null; 
+
+        let slicedCountInSwipe = 0;
+        let comboTimeout = null;
+        let globalTimeScale = 1.0; 
+        let camera = { focusX: 0, focusY: 0, zoom: 1.0 };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            camera.focusX = canvas.width / 2; camera.focusY = canvas.height / 2;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ==========================================
+        // 🚀 多模式数据清洗器
+        // ==========================================
+        function startByMode(mode) {
+            gameMode = mode;
+            score = 0;
+            lives = (mode === 'classic') ? 3 : 999; 
+            gameOver = false;
+            gameActive = true;
+            activeProp = 'none';
+            propTimeLeft = 0;
+            globalTimeScale = 1.0;
+            frenzyCooldown = 0;
+            slicedCountInSwipe = 0;
+            
+            gameObjects = []; 
+            fruitHalves = []; 
+            fastJuiceParticles = []; 
+            boardStains = []; 
+            bladeTrail = []; 
+            floatingTexts = [];
+            
+            scoreEl.innerText = "0";
+            propStatusEl.innerText = '';
+
+            if (mode === 'classic') {
+                timerBoard.style.display = 'none';
+                livesEl.style.display = 'block';
+            } else if (mode === 'invincible') {
+                gameTimer = 120;
+                timerBoard.style.display = 'block';
+                livesEl.style.display = 'none';
+            } else if (mode === 'prop') {
+                gameTimer = 120; // 道具模式定制120秒
+                timerBoard.style.display = 'block';
+                livesEl.style.display = 'none';
+            } else if (mode === 'countdown') {
+                gameTimer = 60;  // 倒计时时间模式锁定60秒
+                timerBoard.style.display = 'block';
+                livesEl.style.display = 'none';
+            }
+
+            timeValEl.innerText = gameTimer;
+            updateLivesUI();
+            
+            document.getElementById('mainMenuScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('backToMenuBtn').style.display = 'block'; 
+            
+            sound.init();
+        }
+
+        function returnToMenu() {
+            gameActive = false;
+            gameOver = false;
+            activeProp = 'none';
+            propStatusEl.innerText = '';
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('backToMenuBtn').style.display = 'none';
+            updateHighScoreUI();
+            document.getElementById('mainMenuScreen').style.display = 'flex';
+        }
+
+        function triggerGameOver() {
+            gameOver = true;
+            
+            // 📊 实时进行高分比较和刷新
+            if (score > (highScores[gameMode] || 0)) {
+                highScores[gameMode] = score;
+                localStorage.setItem('fruitKnife_highScores', JSON.stringify(highScores));
+            }
+
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('gameOverScreen').style.display = 'flex';
+            document.getElementById('backToMenuBtn').style.display = 'none';
+        }
+
+        function updateLivesUI() {
+            if (gameMode !== 'classic') { livesEl.innerText = ''; return; }
+            let hearts = '';
+            for(let i=0; i<3; i++) hearts += i < lives ? '❤️' : '🖤';
+            livesEl.innerText = hearts;
+        }
+
+        function screenToWorld(screenX, screenY) {
+            return {
+                x: camera.focusX + (screenX - canvas.width / 2) / camera.zoom,
+                y: camera.focusY + (screenY - canvas.height / 2) / camera.zoom
+            };
+        }
+
+        // ==========================================
+        // 🎨 渲染底图与飞溅粒子
+        // ==========================================
+        function drawWoodenBoard() {
+            ctx.fillStyle = '#6D4C41'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#3E2723'; ctx.lineWidth = 3; ctx.globalAlpha = 0.18;
+            for (let i = -canvas.height * 2; i < canvas.width * 2; i += 45) {
+                ctx.beginPath(); ctx.moveTo(i, -canvas.height);
+                ctx.bezierCurveTo(i + 150, canvas.height * 0.3, i - 150, canvas.height * 0.7, i + canvas.width * 0.5, canvas.height * 2);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1.0;
+            let vignette = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width * 0.1, canvas.width/2, canvas.height/2, canvas.width * 0.9);
+            vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, 'rgba(0,0,0,0.85)');
+            ctx.fillStyle = vignette; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        class FastJuiceParticle {
+            constructor(x, y, color, isExplosion = false) {
+                this.x = x; this.y = y; this.color = color;
+                let speedMultiplier = isExplosion ? 28 : 18;
+                let angle = Math.random() * Math.PI * 2;
+                let speed = (Math.random() * 0.8 + 0.3) * speedMultiplier;
+                this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+                this.gravity = 0.38; this.alpha = 1.0; this.decay = Math.random() * 0.025 + 0.025; 
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.vy += this.gravity; this.alpha -= this.decay; }
+            draw() {
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.strokeStyle = this.color;
+                ctx.lineWidth = Math.random() * 3.5 + 2.5; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 0.3, this.y - this.vy * 0.3); ctx.stroke(); ctx.restore();
+            }
+        }
+
+        class BoardStain {
+            constructor(x, y, color) {
+                this.x = x + (Math.random() - 0.5) * 15; this.y = y + (Math.random() - 0.5) * 15;
+                this.color = color; this.alpha = 0.48; this.radius = Math.random() * 15 + 8;
+            }
+            update() { this.alpha -= 0.0004 * globalTimeScale; }
+            draw() {
+                if (this.alpha <= 0) return;
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill(); ctx.restore();
+            }
+        }
+
+        // ==========================================
+        // 🍉 完整的核心水果类
+        // ==========================================
+        class PremiumFruit {
+            constructor(type, isSpecial = false, isProp = false, propType = '') {
+                this.type = type; 
+                this.isSpecial = isSpecial; 
+                this.isProp = isProp;
+                this.propType = propType; 
+                
+                this.radius = type === 'banana' ? 38 : (type.includes('dragon') ? 56 : 46);
+                this.x = Math.random() * (canvas.width - this.radius * 3) + this.radius * 1.5;
+                this.y = canvas.height + this.radius;
+                this.vx = (Math.random() - 0.5) * 3.2; this.vy = -(Math.random() * 2.0 + 8.2); 
+                this.gravity = 0.11; this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.025;
+
+                if (this.type === 'bomb') { this.fuseTimer = 0; this.sparks = []; }
+            }
+
+            update() {
+                this.vy += this.gravity * globalTimeScale; this.x += this.vx * globalTimeScale; this.y += this.vy * globalTimeScale; this.rotation += this.rotationSpeed * globalTimeScale;
+                if (this.type === 'bomb') {
+                    this.fuseTimer += 0.25;
+                    if (Math.random() < 0.4) {
+                        this.sparks.push({
+                            dx: 12 + Math.random()*5, dy: -this.radius - 36 + Math.random()*5,
+                            life: 1.0, size: Math.random()*4 + 2, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2 - 1
+                        });
+                    }
+                    for (let i = this.sparks.length - 1; i >= 0; i--) {
+                        let sp = this.sparks[i]; sp.dx += sp.vx; sp.dy += sp.vy; sp.life -= 0.08;
+                        if (sp.life <= 0) this.sparks.splice(i, 1);
+                    }
+                }
+            }
+
+            draw() {
+                ctx.save();
+                let shadowOffset = 25; ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+                ctx.beginPath(); ctx.arc(this.x + shadowOffset, this.y + shadowOffset, this.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+
+                if (this.isProp) {
+                    ctx.shadowBlur = 25;
+                    if (this.propType === 'clock') {
+                        ctx.shadowColor = '#00E676';
+                        ctx.fillStyle = '#CCFF90'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = '#2E7D32'; ctx.lineWidth = 4; ctx.stroke();
+                        ctx.fillStyle = '#1B5E20'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.fillText('⏰', 0, 8);
+                    } else if (this.propType === 'freeze') {
+                        ctx.shadowColor = '#29B6F6';
+                        ctx.fillStyle = '#E1F5FE'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = '#0288D1'; ctx.lineWidth = 4; ctx.stroke();
+                        ctx.fillStyle = '#01579B'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.fillText('❄️', 0, 8);
+                    } else if (this.propType === 'slow') {
+                        ctx.shadowColor = '#AB47BC';
+                        ctx.fillStyle = '#F3E5F5'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = '#7B1FA2'; ctx.lineWidth = 4; ctx.stroke();
+                        ctx.fillStyle = '#4A148C'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.fillText('⏳', 0, 8);
+                    } else if (this.propType === 'frenzy') {
+                        ctx.shadowColor = '#FF7043';
+                        ctx.fillStyle = '#FBE9E7'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                        ctx.strokeStyle = '#D84315'; ctx.lineWidth = 4; ctx.stroke();
+                        ctx.fillStyle = '#5D4037'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.fillText('🔥', 0, 8);
+                    }
+                }
+                else if (this.type === 'watermelon') {
+                    let g = ctx.createRadialGradient(-10, -10, 5, 0, 0, this.radius);
+                    g.addColorStop(0, '#D4E157'); g.addColorStop(0.5, '#4CAF50'); g.addColorStop(1, '#1B5E20');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                } 
+                else if (this.type === 'apple') {
+                    let g = ctx.createRadialGradient(-12, -12, 5, 0, 0, this.radius);
+                    g.addColorStop(0, '#FF8A80'); g.addColorStop(0.4, '#E53935'); g.addColorStop(1, '#880E4F');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                } 
+                else if (this.type === 'orange') {
+                    let g = ctx.createRadialGradient(-10, -10, 5, 0, 0, this.radius);
+                    g.addColorStop(0, '#FFE082'); g.addColorStop(0.5, '#FF9800'); g.addColorStop(1, '#D84315');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                } 
+                else if (this.type === 'kiwi') {
+                    let g = ctx.createRadialGradient(0, 0, 10, 0, 0, this.radius);
+                    g.addColorStop(0, '#8D6E63'); g.addColorStop(0.8, '#6D4C41'); g.addColorStop(1, '#3E2723');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                }
+                else if (this.type === 'banana') {
+                    let g = ctx.createLinearGradient(-this.radius, -10, this.radius, 10);
+                    g.addColorStop(0, '#FFEE58'); g.addColorStop(0.6, '#FDD835'); g.addColorStop(1, '#F57F17');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-this.radius, -5);
+                    ctx.quadraticCurveTo(0, this.radius*0.7, this.radius, -5); ctx.quadraticCurveTo(0, 10, -this.radius, -5); ctx.fill();
+                } 
+                else if (this.type === 'lemon') {
+                    let g = ctx.createRadialGradient(-8, -8, 5, 0, 0, this.radius);
+                    g.addColorStop(0, '#FFFDE7'); g.addColorStop(0.6, '#FFF59D'); g.addColorStop(1, '#FBC02D');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, this.radius*1.15, this.radius*0.8, 0, 0, Math.PI*2); ctx.fill();
+                } 
+                else if (this.type === 'dragonfruit') {
+                    let g = ctx.createRadialGradient(-10, -10, 5, 0, 0, this.radius);
+                    g.addColorStop(0, '#FF4081'); g.addColorStop(0.6, '#E91E63'); g.addColorStop(1, '#880E4F');
+                    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, this.radius*0.9, this.radius*1.1, 0, 0, Math.PI*2); ctx.fill();
+                }
+                else if (this.type === 'bomb') {
+                    ctx.fillStyle = '#B0BEC5'; ctx.fillRect(-8, -this.radius - 8, 16, 8);
+                    ctx.strokeStyle = '#8D6E63'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -this.radius - 8);
+                    ctx.bezierCurveTo(10, -this.radius - 20, -5, -this.radius - 30, 12, -this.radius - 36); ctx.stroke();
+                    let bombGrad = ctx.createRadialGradient(-15, -15, 4, 0, 0, this.radius);
+                    bombGrad.addColorStop(0, '#ECEFF1'); bombGrad.addColorStop(0.5, '#37474F'); bombGrad.addColorStop(1, '#1A237E');
+                    ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fillStyle = bombGrad; ctx.fill();
+                    let alarmAlpha = (Math.sin(this.fuseTimer) + 1) / 2;
+                    ctx.fillStyle = `rgba(255, 17, 0, ${alarmAlpha * 0.95})`; ctx.beginPath(); ctx.arc(0, 5, 10, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.fillText('💀', 0, 9);
+                    this.sparks.forEach(sp => {
+                        ctx.fillStyle = `rgba(255, ${Math.floor(sp.life*200 + 55)}, 0, ${sp.life})`;
+                        ctx.beginPath(); ctx.arc(sp.dx, sp.dy, sp.size, 0, Math.PI*2); ctx.fill();
+                    });
+                }
+
+                if (this.type !== 'bomb' && !this.isProp) {
+                    let gloss = ctx.createRadialGradient(-this.radius*0.35, -this.radius*0.35, 1, -this.radius*0.35, -this.radius*0.35, this.radius*0.45);
+                    gloss.addColorStop(0, 'rgba(255, 255, 255, 0.7)'); gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    ctx.fillStyle = gloss; ctx.beginPath(); ctx.arc(-this.radius*0.35, -this.radius*0.35, this.radius*0.4, 0, Math.PI*2); ctx.fill();
+                }
+                ctx.restore();
+            }
+        }
+
+        // ==========================================
+        // 🍉 彻底告别偷懒：给水果切面换装独立真实果肉材质
+        // ==========================================
+        class PremiumFruitHalf {
+            constructor(x, y, radius, vx, vy, side, type) {
+                this.x = x; this.y = y; this.radius = radius; this.vx = vx; this.vy = vy; this.side = side; this.type = type;
+                this.gravity = 0.16; this.rotation = Math.random() * Math.PI; this.rotationSpeed = side === 'L' ? -0.045 : 0.045;
+            }
+            update() { this.vy += this.gravity * globalTimeScale; this.x += this.vx * globalTimeScale; this.y += this.vy * globalTimeScale; this.rotation += this.rotationSpeed * globalTimeScale; }
+            draw() {
+                ctx.save(); let shadowOffset = 25; ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+                ctx.beginPath(); ctx.arc(this.x + shadowOffset, this.y + shadowOffset, this.radius, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                
+                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rotation); ctx.beginPath();
+                if (this.side === 'L') ctx.arc(0, 0, this.radius * 1.15, -Math.PI/2, Math.PI/2, true);
+                else ctx.arc(0, 0, this.radius * 1.15, -Math.PI/2, Math.PI/2, false);
+                ctx.closePath(); ctx.clip();
+                
+                // 🍏 依照水果类型高级定制果肉渲染
+                if (this.type === 'watermelon') {
+                    ctx.fillStyle = '#1B5E20'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#A1D183'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 4, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#E53935'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 8, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#212121'; // 真实黑子
+                    ctx.fillRect(-12, -8, 3, 4); ctx.fillRect(12, 8, 3, 4); ctx.fillRect(-5, 12, 4, 3);
+                } 
+                else if (this.type === 'apple') {
+                    ctx.fillStyle = '#C62828'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FFFDE7'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 4, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#8D6E63'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill(); // 苹果核心
+                } 
+                else if (this.type === 'orange') {
+                    ctx.fillStyle = '#E65100'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FFF3E0'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 3, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FF9800'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 6, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = '#FFF3E0'; ctx.lineWidth = 2; // 放射橙瓣
+                    for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
+                        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*this.radius, Math.sin(a)*this.radius); ctx.stroke();
+                    }
+                } 
+                else if (this.type === 'kiwi') {
+                    ctx.fillStyle = '#4E342E'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#9CCC65'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 4, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#DCEDC8'; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#212121'; // 环形密集细籽
+                    for(let a=0; a<Math.PI*2; a+=Math.PI/6) {
+                        ctx.fillRect(Math.cos(a)*15, Math.sin(a)*15, 2, 2);
+                    }
+                } 
+                else if (this.type === 'banana') {
+                    ctx.fillStyle = '#FBC02D'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FFFDE7'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 4, 0, Math.PI*2); ctx.fill();
+                } 
+                else if (this.type === 'lemon') {
+                    ctx.fillStyle = '#F57F17'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FFFDE7'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 3, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FFF59D'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 6, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = '#FFFDE7'; ctx.lineWidth = 1.5;
+                    for(let a=0; a<Math.PI*2; a+=Math.PI/3) {
+                        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*this.radius, Math.sin(a)*this.radius); ctx.stroke();
+                    }
+                } 
+                else if (this.type === 'dragonfruit') {
+                    ctx.fillStyle = '#C2185B'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(0, 0, this.radius - 5, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#212121'; // 火龙果固定散落黑色小点（防止每帧闪烁）
+                    for (let r = 8; r < this.radius - 8; r += 10) {
+                        for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+                            ctx.fillRect(Math.cos(a + r)*r, Math.sin(a + r)*r, 2, 2);
+                        }
+                    }
+                }
+                ctx.restore();
+            }
+        }
+
+        function drawBladeTrail() {
+            if (bladeTrail.length < 2) return;
+            ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            for (let i = 1; i < bladeTrail.length; i++) {
+                let p1 = bladeTrail[i - 1]; let p2 = bladeTrail[i];
+                ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+                ctx.strokeStyle = `rgba(0, 229, 255, ${p2.alpha * 0.55})`; ctx.lineWidth = 14 * p2.alpha; ctx.stroke();
+                ctx.strokeStyle = `rgba(255, 255, 255, ${p2.alpha})`; ctx.lineWidth = 4 * p2.alpha; ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function checkIntersection(p1, p2, target) {
+            let A = target.x - p1.x; let B = target.y - p1.y;
+            let C = p2.x - p1.x; let D = p2.y - p1.y;
+            let dot = A * C + B * D; let lenSq = C * C + D * D;
+            let param = lenSq !== 0 ? dot / lenSq : -1;
+            let xx, yy;
+            if (param < 0) { xx = p1.x; yy = p1.y; }
+            else if (param > 1) { xx = p2.x; yy = p2.y; }
+            else { xx = p1.x + param * C; yy = p1.y + param * D; }
+            return Math.sqrt((target.x - xx)**2 + (target.y - yy)**2) < target.radius;
+        }
+
+        // ==========================================
+        // 🔄 游戏主重绘保活状态管道
+        // ==========================================
+        function updateGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            frameCount++;
+
+            if (!gameActive) {
+                drawWoodenBoard();
+                requestAnimationFrame(updateGame);
+                return;
+            }
+
+            if (gameOver) {
+                drawWoodenBoard();
+                for (let i = boardStains.length - 1; i >= 0; i--) boardStains[i].draw();
+                requestAnimationFrame(updateGame);
+                return;
+            }
+
+            if (activeProp !== 'none') {
+                propTimeLeft--;
+                let secondsLeft = Math.ceil(propTimeLeft / 60);
+                if (activeProp === 'freeze') {
+                    globalTimeScale = 0.15;
+                    propStatusEl.innerText = i18n[currentLang].statusFreeze + secondsLeft + "s";
+                } else if (activeProp === 'slow') {
+                    globalTimeScale = 0.35;
+                    propStatusEl.innerText = i18n[currentLang].statusSlow + secondsLeft + "s";
+                } else if (activeProp === 'frenzy') {
+                    globalTimeScale = 1.0;
+                    propStatusEl.innerText = i18n[currentLang].statusFrenzy + secondsLeft + "s";
+                }
+                if (propTimeLeft <= 0) { activeProp = 'none'; propStatusEl.innerText = ''; }
+            } else if (gameMode === 'invincible') {
+                globalTimeScale = 1.0;
+                propStatusEl.innerText = i18n[currentLang].statusInvincible;
+            } else {
+                globalTimeScale = 1.0;
+                propStatusEl.innerText = '';
+            }
+
+            if (gameMode !== 'classic' && frameCount % 60 === 0) {
+                gameTimer--;
+                timeValEl.innerText = gameTimer;
+                if (gameMode === 'invincible') {
+                    score += 5; 
+                    scoreEl.innerText = score;
+                }
+                if (gameTimer <= 0) { triggerGameOver(); }
+            }
+
+            drawWoodenBoard();
+            
+            for (let i = boardStains.length - 1; i >= 0; i--) {
+                boardStains[i].update(); boardStains[i].draw();
+                if (boardStains[i].alpha <= 0) boardStains.splice(i, 1);
+            }
+
+            if (activeProp === 'frenzy') {
+                frenzyCooldown--;
+                if (frenzyCooldown <= 0) {
+                    frenzyCooldown = 18;
+                    let batch = 3 + Math.floor(Math.random() * 3);
+                    let pool = ['watermelon', 'apple', 'orange', 'kiwi', 'banana', 'lemon'];
+                    for (let k = 0; k < batch; k++) {
+                        gameObjects.push(new PremiumFruit(pool[Math.floor(Math.random() * pool.length)]));
+                    }
+                }
+            } else if (Math.random() < 0.011 && gameObjects.length < 5) {
+                let rand = Math.random();
+                let canSpawnBomb = (gameMode !== 'invincible' && activeProp === 'none');
+
+                if (canSpawnBomb && rand < 0.14) {
+                    gameObjects.push(new PremiumFruit('bomb'));
+                } else if (rand > 0.86) {
+                    let pPool = [];
+                    if (gameMode === 'classic') pPool = ['freeze', 'slow', 'frenzy'];
+                    else if (gameMode === 'countdown') pPool = ['clock'];
+                    else if (gameMode === 'prop') pPool = ['clock', 'freeze', 'slow', 'frenzy'];
+                    
+                    if (pPool.length > 0) {
+                        let pType = pPool[Math.floor(Math.random() * pPool.length)];
+                        gameObjects.push(new PremiumFruit('prop', false, true, pType));
+                    } else {
+                        let pool = ['watermelon', 'apple', 'orange', 'kiwi', 'banana', 'lemon'];
+                        gameObjects.push(new PremiumFruit(pool[Math.floor(Math.random() * pool.length)]));
+                    }
+                } else {
+                    let pool = ['watermelon', 'apple', 'orange', 'kiwi', 'banana', 'lemon', 'dragonfruit'];
+                    gameObjects.push(new PremiumFruit(pool[Math.floor(Math.random() * pool.length)]));
+                }
+            }
+
+            for (let i = gameObjects.length - 1; i >= 0; i--) {
+                let obj = gameObjects[i]; obj.update(); obj.draw();
+                if (obj.y > canvas.height + obj.radius * 2) {
+                    if (gameMode === 'classic' && obj.type !== 'bomb' && !obj.isProp) {
+                        lives--; updateLivesUI();
+                        if (lives <= 0) { triggerGameOver(); }
+                    }
+                    gameObjects.splice(i, 1);
+                }
+            }
+
+            for (let i = fruitHalves.length - 1; i >= 0; i--) {
+                let h = fruitHalves[i]; h.update(); h.draw();
+                if (h.y > canvas.height + h.radius * 2) fruitHalves.splice(i, 1);
+            }
+
+            for (let i = fastJuiceParticles.length - 1; i >= 0; i--) {
+                fastJuiceParticles[i].update(); fastJuiceParticles[i].draw();
+                if (fastJuiceParticles[i].alpha <= 0) fastJuiceParticles.splice(i, 1);
+            }
+
+            drawBladeTrail();
+
+            for (let i = bladeTrail.length - 1; i >= 0; i--) {
+                bladeTrail[i].alpha -= 0.055; if (bladeTrail[i].alpha <= 0) bladeTrail.splice(i, 1);
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i]; ft.y += ft.vy; ft.alpha -= 0.02;
+                if (ft.alpha <= 0) { floatingTexts.splice(i, 1); } 
+                else {
+                    ctx.save(); ctx.globalAlpha = ft.alpha; ctx.fillStyle = ft.color;
+                    ctx.font = `bold ${ft.size}px 'Microsoft YaHei'`; ctx.textAlign = 'center';
+                    ctx.shadowBlur = 6; ctx.shadowColor = '#000000';
+                    ctx.fillText(ft.text, ft.x, ft.y); ctx.restore();
+                }
+            }
+
+            requestAnimationFrame(updateGame);
+        }
+
+        // ==========================================
+        // ⚔️ 输入控制与划过结算器
+        // ==========================================
+        function handleStart(e) {
+            if (!gameActive || gameOver) return;
+            isSlicing = true;
+            slicedCountInSwipe = 0;
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            lastWorldPoint = screenToWorld(clientX, clientY);
+            bladeTrail = [{ x: clientX, y: clientY, alpha: 1.0 }];
+        }
+
+        function handleMove(e) {
+            if (!isSlicing || !lastWorldPoint || gameOver) return;
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            let currentWorldPoint = screenToWorld(clientX, clientY);
+            bladeTrail.push({ x: clientX, y: clientY, alpha: 1.0 });
+
+            for (let i = gameObjects.length - 1; i >= 0; i--) {
+                let obj = gameObjects[i];
+                
+                // 🛠️ 【核心高难Bug修复】如果物体坐标还处于画布高度外，禁止触发切割判定，杜绝“隐形/盲切炸弹扣血”
+                if (obj.y > canvas.height) continue;
+
+                if (checkIntersection(lastWorldPoint, currentWorldPoint, obj)) {
+                    
+                    if (obj.isProp) {
+                        sound.playTink();
+                        if (obj.propType === 'clock') {
+                            gameTimer += 10; 
+                            floatingTexts.push({ x: clientX, y: clientY, text: "+10s ⏰", color: '#00E676', size: 32, alpha: 1.0, vy: -2 });
+                        } else {
+                            activeProp = obj.propType;
+                            propTimeLeft = obj.propType === 'slow' ? 480 : 360; 
+                            frenzyCooldown = 0;
+                            let triggerText = obj.propType === 'freeze' ? 'FREEZE ❄️' : (obj.propType === 'slow' ? 'SLOW ⏳' : 'FRENZY 🔥');
+                            floatingTexts.push({ x: clientX, y: clientY, text: triggerText, color: '#00E5FF', size: 34, alpha: 1.0, vy: -2 });
+                        }
+                        gameObjects.splice(i, 1);
+                        continue;
+                    }
+
+                    let pColor = '#FF1744', sColor = '#4A000A';
+                    if (obj.type === 'apple') { pColor = '#FFF59D'; sColor = '#7F0000'; }
+                    else if (obj.type === 'orange') { pColor = '#FFE082'; sColor = '#BF360C'; }
+                    else if (obj.type === 'watermelon') { pColor = '#FF5252'; sColor = '#1B5E20'; }
+                    else if (obj.type === 'kiwi') { pColor = '#C0CA33'; sColor = '#4E342E'; }
+                    else if (obj.type === 'lemon') { pColor = '#FFF59D'; sColor = '#F57F17'; }
+                    else if (obj.type === 'dragonfruit') { pColor = '#FFFFFF'; sColor = '#C2185B'; }
+
+                    if (obj.type !== 'bomb') {
+                        slicedCountInSwipe++;
+                        score += 5; scoreEl.innerText = score; sound.playTink();
+                        
+                        fruitHalves.push(new PremiumFruitHalf(obj.x, obj.y, obj.radius, obj.vx - 2.5, obj.vy * 0.5, 'L', obj.type));
+                        fruitHalves.push(new PremiumFruitHalf(obj.x, obj.y, obj.radius, obj.vx + 2.5, obj.vy * 0.5, 'R', obj.type));
+                        for (let p = 0; p < 15; p++) fastJuiceParticles.push(new FastJuiceParticle(clientX, clientY, pColor));
+                        boardStains.push(new BoardStain(currentWorldPoint.x, currentWorldPoint.y, sColor));
+                        gameObjects.splice(i, 1);
+
+                        if (comboTimeout) clearTimeout(comboTimeout);
+                        comboTimeout = setTimeout(() => {
+                            if (slicedCountInSwipe >= 3) {
+                                let bonus = slicedCountInSwipe;
+                                score += bonus; scoreEl.innerText = score;
+                                floatingTexts.push({
+                                    x: canvas.width / 2, y: canvas.height / 2 - 80,
+                                    text: `${slicedCountInSwipe} COMBO! +${bonus}`,
+                                    color: '#FFD54F', size: 42, alpha: 1.0, vy: -1
+                                });
+                            }
+                            slicedCountInSwipe = 0;
+                        }, 220);
+                    } 
+                    else if (obj.type === 'bomb') {
+                        sound.playExplosion();
+                        for (let p = 0; p < 35; p++) fastJuiceParticles.push(new FastJuiceParticle(clientX, clientY, Math.random() > 0.45 ? '#455A64' : '#FF5722', true));
+                        
+                        if (gameMode !== 'invincible') {
+                            if (gameMode === 'classic') {
+                                lives--; updateLivesUI();
+                                if (lives <= 0) { triggerGameOver(); }
+                            } else {
+                                gameTimer = Math.max(0, gameTimer - 10); 
+                                timeValEl.innerText = gameTimer;
+                                floatingTexts.push({ x: clientX, y: clientY, text: "-10s 💥", color: '#FF1744', size: 32, alpha: 1.0, vy: -2 });
+                                if (gameTimer <= 0) { triggerGameOver(); }
+                            }
+                        }
+                        gameObjects.splice(i, 1);
+                    }
+                }
+            }
+            lastWorldPoint = currentWorldPoint;
+        }
+
+        function handleEnd() { isSlicing = false; lastWorldPoint = null; }
+
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, { passive: false });
+        window.addEventListener('touchend', handleEnd);
+
+        // 初始装载高分缓存
+        loadHighScores();
+        updateGame();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>roblox</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        /* 精准锁定禁止流氓手势的组件，绝不连累背包滚动条 */
+        html, body, canvas, #main-menu, #hud-bar, #mobile-controls, #lang-modal {
+            touch-action: none !important;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: sans-serif;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* 强制横屏提示 */
+        #orientation-warning {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 20, 20, 0.95);
+            color: white;
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        @media (orientation: portrait) {
+            #orientation-warning { display: flex; }
+        }
+
+        /* UI 通用样式 */
+        .ui-panel {
+            position: fixed;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        button, select {
+            padding: 10px 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        button:active { background: #0b7dda; }
+
+        /* 初始语言选择弹窗 */
+        #lang-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #111 0%, #222 100%);
+            z-index: 20000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 25px;
+            color: white;
+        }
+        #lang-modal h2 {
+            font-size: 24px;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .lang-btn {
+            font-size: 18px;
+            padding: 14px 40px;
+            width: 220px;
+            border-radius: 8px;
+            transition: transform 0.1s;
+        }
+        .lang-btn:active { transform: scale(0.95); }
+
+        /* 左上角永久游玩时长显示器 */
+        #play-time-hud {
+            position: fixed;
+            top: 65px; 
+            left: 12px;
+            color: #00e676;
+            background: rgba(15, 20, 30, 0.85);
+            padding: 6px 14px;
+            border: 1px solid rgba(0, 230, 118, 0.3);
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 13px;
+            z-index: 99;
+            font-family: monospace;
+            display: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        /* 主菜单界面 */
+        #main-menu {
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            display: none; /* 语言选完后再展示 */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            color: white;
+        }
+        #main-menu h1 { font-size: 42px; text-shadow: 0 3px 6px rgba(0,0,0,0.6); letter-spacing: 2px; font-weight: bold; }
+        
+        /* 右上角设置 */
+        #settings-trigger {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            font-size: 18px;
+            padding: 8px 14px;
+            border-radius: 50%;
+        }
+
+        /* 设置独立弹窗面板 */
+        #settings-modal {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(20, 24, 35, 0.98);
+            border: 2px solid #00e676;
+            border-radius: 12px;
+            padding: 22px;
+            width: 360px;
+            z-index: 500;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        }
+        #settings-modal h2 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #00e676; border-bottom: 1px solid #444; padding-bottom: 6px;}
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .setting-row select { background: #fff; color: #222; padding: 4px 8px; font-size: 13px; border-radius: 4px; }
+
+        /* 游戏内顶部主要操作栏 */
+        #hud-bar {
+            top: 12px; left: 12px; right: 12px;
+            display: none;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .hud-group { display: flex; gap: 8px; pointer-events: auto; }
+        #mode-btn { background: #E91E63; }
+
+        /* 游戏内置通用通知弹窗 */
+        #custom-dialog {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(25, 25, 25, 0.98);
+            color: white;
+            padding: 22px 30px;
+            border-radius: 10px;
+            border: 2px solid #00bcd4;
+            z-index: 10000;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+        }
+
+        /* 🛠️ 新增：高级拟态虚拟输入终端 (完全替代 prompt()，确保不退全屏) */
+        #custom-prompt-modal {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(18, 18, 24, 0.98);
+            border: 2px solid #9c27b0;
+            border-radius: 12px;
+            padding: 20px;
+            width: 85%;
+            max-width: 480px;
+            z-index: 15000;
+            color: white;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+            touch-action: none;
+        }
+        #prompt-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #9c27b0; }
+        #prompt-textarea {
+            width: 100%; height: 90px;
+            background: #2a2a35; color: #fff;
+            border: 1px solid #555; border-radius: 6px;
+            padding: 10px; font-family: monospace;
+            font-size: 13px; resize: none; margin-bottom: 15px;
+            outline: none;
+            touch-action: auto !important; /* 允许文本框输入事件 */
+        }
+        #prompt-textarea:focus { border-color: #9c27b0; }
+        .prompt-btn-group { display: flex; justify-content: flex-end; gap: 10px; }
+
+        /* 背包大网格 UI 容器 */
+        #backpack-panel {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 15, 15, 0.98);
+            border: 3px solid #9C27B0;
+            border-radius: 14px;
+            width: 80%;
+            max-width: 550px;
+            padding: 15px;
+            z-index: 999;
+            color: white;
+            touch-action: pan-y !important; 
+        }
+        #backpack-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            touch-action: pan-y !important; 
+            padding-right: 5px;
+        }
+        .backpack-slot {
+            background: #262626;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 10px 4px;
+            text-align: center;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            touch-action: pan-y !important;
+        }
+        .backpack-slot.active { background: #4CAF50; border-color: #fff; }
+
+        /* 手机端虚拟遥杆 */
+        #mobile-controls {
+            bottom: 16px; left: 16px; right: 16px;
+            display: none; 
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(3, 50px);
+            gap: 6px;
+            pointer-events: auto;
+        }
+        .dpad button { padding: 0; width: 50px; height: 50px; background: rgba(255,255,255,0.25); border: 2px solid #fff; border-radius: 8px; font-size: 18px;}
+        #jump-btn { width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.35); border: 2px solid #fff; font-size: 15px; pointer-events: auto;}
+    </style>
+</head>
+<body>
+
+    <div id="lang-modal">
+        <h2>Please Select Language / 请选择语言</h2>
+        <button class="lang-btn" onclick="selectLanguage('zh')" style="background:#4CAF50;">简体中文</button>
+        <button class="lang-btn" onclick="selectLanguage('en')" style="background:#00bcd4;">English</button>
+    </div>
+
+    <div id="orientation-warning"><p id="txt-orientation">🔄 请旋转手机至【横屏】游玩测试</p></div>
+
+    <div id="play-time-hud">⏱️ 游玩时长: 00:00:00</div>
+
+    <div id="custom-dialog">
+        <p id="dialog-msg" style="margin-bottom:15px; font-weight:bold; line-height: 1.4;"></p>
+        <button id="dialog-confirm-btn" onclick="closeDialog()" style="background:#00bcd4; padding:6px 25px;">确定</button>
+    </div>
+
+    <div id="custom-prompt-modal">
+        <div id="prompt-title">输入脚本代码</div>
+        <textarea id="prompt-textarea" placeholder="console.log('Hello World');"></textarea>
+        <div class="prompt-btn-group">
+            <button id="prompt-cancel-btn" onclick="closeCustomPrompt(false)" style="background:#555;">取消</button>
+            <button id="prompt-ok-btn" onclick="closeCustomPrompt(true)" style="background:#9c27b0;">确认提交</button>
+        </div>
+    </div>
+
+    <div id="main-menu" class="ui-panel">
+        <h1>roblox</h1>
+        <button id="settings-trigger" onclick="openSettingsModal()">⚙️ 设置</button>
+        <div style="display: flex; gap: 15px;">
+            <button id="menu-fullscreen-btn" onclick="toggleFullscreen()" style="background: #546e7a;">全屏</button>
+            <button id="menu-start-btn" onclick="startGame()" style="background:#4CAF50; font-size: 18px; padding: 12px 35px;">进入世界</button>
+        </div>
+    </div>
+
+    <div id="settings-modal">
+        <h2 id="set-title">游戏设置中心</h2>
+        <div class="setting-row">
+            <label id="set-gfx-label">☀️ 真实物理光影材质：</label>
+            <select id="graphics-quality">
+                <option value="normal" id="opt-gfx-low">普通光影 (低阶贴图)</option>
+                <option value="advanced" id="opt-gfx-mid">进阶光影 (中阶渲染)</option>
+                <option value="ultra" id="opt-gfx-high" selected>电影级光影 (真物理反光)</option>
+            </select>
+        </div>
+        <div class="setting-row">
+            <label id="set-cam-label">🎥 视角自动跟随(3人称)：</label>
+            <select id="camera-follow">
+                <option value="on" id="opt-cam-on" selected>开启跟随</option>
+                <option value="off" id="opt-cam-off">关闭跟随</option>
+            </select>
+        </div>
+        <div class="setting-row" style="margin-top: 10px; margin-bottom: 5px;">
+            <button id="set-globalcode-btn" onclick="writeGlobalCode()" style="width:100%; background:#9c27b0; font-size:13px;">🌐 编写全局自定义代码 (每帧运行)</button>
+        </div>
+        
+        <div class="setting-row" style="border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; flex-direction: column; gap: 8px; align-items: stretch;">
+            <div id="set-sandbox-title" style="font-size: 12px; color: #00e676; font-weight: bold; text-align: center;">⏱️ 累计时长数据沙盒</div>
+            <div style="display: flex; gap: 8px;">
+                <button id="set-export-btn" onclick="exportPlayTime()" style="flex: 1; background: #00bcd4; font-size: 12px; padding: 6px 0;">📤 导出时长</button>
+                <button id="set-clear-btn" onclick="clearPlayTime()" style="flex: 1; background: #f44336; font-size: 12px; padding: 6px 0;">🗑️ 清空记录</button>
+            </div>
+        </div>
+        
+        <button id="set-save-btn" onclick="closeSettingsModal()" style="width:100%; background:#00e676; color:#111; margin-top:12px; font-weight:bold;">保存并应用</button>
+    </div>
+
+    <div id="hud-bar" class="ui-panel">
+        <div class="hud-group">
+            <button id="mode-btn" onclick="toggleMode()">当前模式: 建造模式</button>
+            <button id="backpack-btn" onclick="toggleBackpack()" style="background:#9C27B0;">🎒 物品: 红砖方块</button>
+            <button id="tool-btn" onclick="toggleToolMode()" style="background:#FF5722;">当前工具: 🔨建造</button>
+            <button id="view-btn" onclick="toggleViewMode()" style="background:#00bcd4;">🎥 视角: 第三人称</button>
+        </div>
+        
+        <div class="hud-group" id="data-action-group">
+            <button id="hud-save-btn" onclick="saveMap()">保存地图</button>
+            <button id="hud-load-btn" onclick="loadMap()">读取地图</button>
+            <button id="hud-clear-btn" onclick="clearMap()">清空</button>
+            <button id="hud-exit-btn" onclick="exitToMenu()">菜单</button>
+        </div>
+    </div>
+
+    <div id="backpack-panel" class="ui-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #444; padding-bottom:5px;">
+            <h3 id="bp-header-title" style="margin:0; font-size:14px; color:#00e676;">🎒 选择方块 / 滑动测试往下翻页</h3>
+            <button id="bp-close-btn" onclick="toggleBackpack()" style="background:#ff4444; padding:2px 10px; font-size:12px;">关闭</button>
+        </div>
+        <div id="backpack-grid"></div>
+    </div>
+
+    <div id="mobile-controls" class="ui-panel">
+        <div class="dpad">
+            <div></div><button id="btn-up">▲</button><div></div>
+            <button id="btn-left">◀</button><div></div><button id="btn-right">▶</button>
+            <div></div><button id="btn-down">▼</button><div></div>
+        </div>
+        <button id="jump-btn">跳跃</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let currentMode = 'menu'; 
+        let currentTool = 'build'; 
+        let viewMode = '3rd'; 
+        let blocks = [];
+        const blockLength = 1;
+
+        let eraseTarget = null; 
+        let originalEmissive = 0; 
+
+        // 语言驱动包
+        let currentLang = 'zh';
+        const langPack = {
+            zh: {
+                orientation: "🔄 请旋转手机至【横屏】游玩测试",
+                playTime: "⏱️ 游玩时长: ",
+                confirm: "确定",
+                cancel: "取消",
+                settings: "⚙️ 设置",
+                fullscreen: "全屏",
+                enterWorld: "进入世界",
+                setCenter: "游戏设置中心",
+                gfxLabel: "☀️ 真实物理光影材质：",
+                gfxLow: "普通光影 (低阶贴图)",
+                gfxMid: "进阶光影 (中阶渲染)",
+                gfxHigh: "电影级光影 (真物理反光)",
+                camLabel: "🎥 视角自动跟随(3人称)：",
+                camOn: "开启跟随",
+                camOff: "关闭跟随",
+                globalCodeBtn: "🌐 编写全局自定义代码 (每帧运行)",
+                sandboxTitle: "⏱️ 累计时长数据沙盒",
+                exportBtn: "📤 导出时长",
+                clearBtn: "🗑️ 清空记录",
+                saveApply: "保存并应用",
+                modeEdit: "当前模式: 建造模式",
+                modePlay: "当前模式: 游玩测试",
+                backpack: "🎒 物品: ",
+                toolBuild: "当前工具: 🔨建造",
+                toolErase: "当前工具: 🧹橡皮擦",
+                view3rd: "🎥 视角: 第三人称",
+                view1st: "🎥 视角: 第一人称",
+                saveMap: "保存地图",
+                loadMap: "读取地图",
+                clearMap: "清空",
+                menu: "菜单",
+                bpTitle: "🎒 选择方块 / 滑动测试往下翻页",
+                bpClose: "关闭",
+                jump: "跳跃",
+                promptGlobalTitle: "请输入循环运行的全局 JS 代码:",
+                promptCodeBlockTitle: "请输入此方块运行的自定义 JS 代码:",
+                alertGlobalLoaded: "🌐 全局自定义代码已载入！",
+                alertCopied: "📤 累计游玩时长已安全复制至剪贴板：",
+                alertShowTime: "📤 您的当前累计游玩总时长为：",
+                alertClearAsk: "🚨 警告：确定要彻底清空所有的累计游玩时长记录吗？此操作不可撤销！",
+                alertClearSuccess: "🗑️ 时长记录已成功归零清空！",
+                alertSpawn: "🔮 已强制送回出生点！",
+                alertRespawn: "💥 已判定重生成！",
+                alertTriggered: "踩踏代码块成功！",
+                alertSpeedTrig: "通过点击方块获得了3倍移速！",
+                alertSaveMapSuccess: "💾 地图及可编程代码数据已归档至本地沙盒！",
+                alertNoSnapshot: "⚠️ 未检索到可用的备份快照。",
+                alertClearMapSuccess: "🧹 场景已完全清空重置！"
+            },
+            en: {
+                orientation: "🔄 Please rotate phone to 【Landscape】 mode",
+                playTime: "⏱️ Play Time: ",
+                confirm: "OK",
+                cancel: "Cancel",
+                settings: "⚙️ Settings",
+                fullscreen: "Fullscreen",
+                enterWorld: "Enter World",
+                setCenter: "Game Settings",
+                gfxLabel: "☀️ Physical Shading Quality:",
+                gfxLow: "Normal GFX (Low Texture)",
+                gfxMid: "Advanced GFX (Medium)",
+                gfxHigh: "Ultra GFX (Real Physical Reflection)",
+                camLabel: "🎥 Auto Follow Cam (3rd Person):",
+                camOn: "Enabled",
+                camOff: "Disabled",
+                globalCodeBtn: "🌐 Write Global Custom Code (Runs every frame)",
+                sandboxTitle: "⏱️ Playtime Data Sandbox",
+                exportBtn: "📤 Export Time",
+                clearBtn: "🗑️ Clear Records",
+                saveApply: "Save & Apply",
+                modeEdit: "Mode: Build Mode",
+                modePlay: "Mode: Play Test",
+                backpack: "🎒 Item: ",
+                toolBuild: "Tool: 🔨 Build",
+                toolErase: "Tool: 🧹 Eraser",
+                view3rd: "🎥 View: 3rd Person",
+                view1st: "🎥 View: 1st Person",
+                saveMap: "Save Map",
+                loadMap: "Load Map",
+                clearMap: "Clear",
+                menu: "Menu",
+                bpTitle: "🎒 Select Block / Scroll Down to View More",
+                bpClose: "Close",
+                jump: "Jump",
+                promptGlobalTitle: "Enter global JS code running on loop:",
+                promptCodeBlockTitle: "Enter custom JS code for this trigger block:",
+                alertGlobalLoaded: "🌐 Global custom code loaded!",
+                alertCopied: "📤 Total play time has been safely copied to clipboard:",
+                alertShowTime: "📤 Your current cumulative play time is:",
+                alertClearAsk: "🚨 Warning: Are you sure you want to permanently clear all playtime records? This cannot be undone!",
+                alertClearSuccess: "🗑️ Playtime history has been successfully cleared!",
+                alertSpawn: "🔮 Teleported back to spawn point!",
+                alertRespawn: "💥 Respawn triggered!",
+                alertTriggered: "Step on code block triggered successfully!",
+                alertSpeedTrig: "Gained 3x movement speed via click trigger!",
+                alertSaveMapSuccess: "💾 Map and programmable code data saved to local sandbox!",
+                alertNoSnapshot: "⚠️ No backup snapshot found.",
+                alertClearMapSuccess: "🧹 Scene cleared completely!"
+            }
+        };
+
+        const itemTranslations = {
+            zh: [
+                { name: '红砖方块' }, { name: '蓝砖方块' }, { name: '绿宝石块' }, { name: '纯金方块' }, 
+                { name: '玻璃方块' }, { name: '岩浆 (致死)' }, { name: '机关 (坍塌)' }, { name: '加速带 (修复版)' }, 
+                { name: '超级弹床' }, { name: '传送阵' }, { name: '点击方块触发器' }, { name: '特制代码触碰块' }
+            ],
+            en: [
+                { name: 'Red Brick' }, { name: 'Blue Brick' }, { name: 'Emerald Block' }, { name: 'Gold Block' }, 
+                { name: 'Glass Block' }, { name: 'Lava (Deadly)' }, { name: 'Trap (Collapsible)' }, { name: 'Speed Pad' }, 
+                { name: 'Super Trampoline' }, { name: 'Teleporter' }, { name: 'Click Trigger Block' }, { name: 'Custom Code Block' }
+            ]
+        };
+
+        // 核心虚拟 Prompt 回调分流控制
+        let customPromptCallback = null;
+        function openCustomPrompt(title, defaultVal, callback) {
+            document.getElementById('prompt-title').innerText = title;
+            document.getElementById('prompt-textarea').value = defaultVal;
+            document.getElementById('custom-prompt-modal').style.display = 'block';
+            customPromptCallback = callback;
+        }
+        function closeCustomPrompt(isConfirm) {
+            document.getElementById('custom-prompt-modal').style.display = 'none';
+            if (isConfirm && customPromptCallback) {
+                customPromptCallback(document.getElementById('prompt-textarea').value);
+            }
+            customPromptCallback = null;
+        }
+
+        function selectLanguage(lang) {
+            currentLang = lang;
+            document.getElementById('lang-modal').style.display = 'none';
+            document.getElementById('main-menu').style.display = 'flex';
+            applyLanguagePack();
+        }
+
+        function applyLanguagePack() {
+            const p = langPack[currentLang];
+            document.getElementById('txt-orientation').innerText = p.orientation;
+            document.getElementById('dialog-confirm-btn').innerText = p.confirm;
+            document.getElementById('prompt-cancel-btn').innerText = p.cancel;
+            document.getElementById('prompt-ok-btn').innerText = p.confirm;
+            document.getElementById('settings-trigger').innerText = p.settings;
+            document.getElementById('menu-fullscreen-btn').innerText = p.fullscreen;
+            document.getElementById('menu-start-btn').innerText = p.enterWorld;
+            document.getElementById('set-title').innerText = p.setCenter;
+            document.getElementById('set-gfx-label').innerText = p.gfxLabel;
+            document.getElementById('opt-gfx-low').innerText = p.gfxLow;
+            document.getElementById('opt-gfx-mid').innerText = p.gfxMid;
+            document.getElementById('opt-gfx-high').innerText = p.gfxHigh;
+            document.getElementById('set-cam-label').innerText = p.camLabel;
+            document.getElementById('opt-cam-on').innerText = p.camOn;
+            document.getElementById('opt-cam-off').innerText = p.camOff;
+            document.getElementById('set-globalcode-btn').innerText = p.globalCodeBtn;
+            document.getElementById('set-sandbox-title').innerText = p.sandboxTitle;
+            document.getElementById('set-export-btn').innerText = p.exportBtn;
+            document.getElementById('set-clear-btn').innerText = p.clearBtn;
+            document.getElementById('set-save-btn').innerText = p.saveApply;
+            document.getElementById('hud-save-btn').innerText = p.saveMap;
+            document.getElementById('hud-load-btn').innerText = p.loadMap;
+            document.getElementById('hud-clear-btn').innerText = p.clearMap;
+            document.getElementById('hud-exit-btn').innerText = p.menu;
+            document.getElementById('bp-header-title').innerText = p.bpTitle;
+            document.getElementById('bp-close-btn').innerText = p.bpClose;
+            document.getElementById('jump-btn').innerText = p.jump;
+
+            // 刷新动态变化的 HUD 文本
+            updateDynamicHUDStrings();
+            
+            // 重新映射物品数据池
+            itemTypes.forEach((item, index) => {
+                item.name = itemTranslations[currentLang][index].name;
+            });
+        }
+
+        function updateDynamicHUDStrings() {
+            const p = langPack[currentLang];
+            const modeBtn = document.getElementById('mode-btn');
+            if (currentMode === 'edit') {
+                modeBtn.innerText = p.modeEdit;
+                modeBtn.style.background = "#E91E63";
+            } else if (currentMode === 'play') {
+                modeBtn.innerText = p.modePlay;
+                modeBtn.style.background = "#4CAF50";
+            }
+            
+            const toolBtn = document.getElementById('tool-btn');
+            if (currentTool === 'build') {
+                toolBtn.innerText = p.toolBuild;
+                toolBtn.style.background = "#FF5722";
+            } else {
+                toolBtn.innerText = p.toolErase;
+                toolBtn.style.background = "#78909c";
+            }
+
+            const viewBtn = document.getElementById('view-btn');
+            if (viewMode === '3rd') {
+                viewBtn.innerText = p.view3rd;
+            } else {
+                viewBtn.innerText = p.view1st;
+            }
+
+            if(itemTypes && itemTypes[selectedItemIndex]) {
+                document.getElementById('backpack-btn').innerText = p.backpack + itemTypes[selectedItemIndex].name;
+            }
+        }
+
+        // 核心硬件级多点阻断追踪防冲突引擎变量
+        let isDraggingCam = false;
+        let activeCamPointerId = null; 
+        const joystickPointerIds = new Set(); 
+        let prevPointerPos = { x: 0, y: 0 };
+        let fpYaw = 0;
+        let fpPitch = 0;
+
+        let globalCustomCode = "";
+
+        // 时长持久化核心数据层
+        let totalPlayTime = parseInt(localStorage.getItem('roblox_total_play_time_v5')) || 0;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let floorPlane; 
+
+        let player, playerVelocity = new THREE.Vector3(), isGrounded = false;
+        let speedMultiplier = 1.0; 
+        const moveInput = { forward: 0, backward: 0, left: 0, right: 0, jump: false };
+        const clock = new THREE.Clock();
+
+        let pointerDownTime = 0;
+        const pointerDownPos = new THREE.Vector2();
+
+        const itemTypes = [
+            { id: 'red_block', name: '红砖方块', color: 0xd63031, roughness: 0.7, metalness: 0.1, behavior: 'solid' },
+            { id: 'blue_block', name: '蓝砖方块', color: 0x0984e3, roughness: 0.5, metalness: 0.2, behavior: 'solid' },
+            { id: 'emerald_block', name: '绿宝石块', color: 0x00b894, roughness: 0.2, metalness: 0.6, behavior: 'solid' },
+            { id: 'gold_block', name: '纯金方块', color: 0xfdcb6e, roughness: 0.1, metalness: 0.95, behavior: 'solid' },
+            { id: 'glass_block', name: '玻璃方块', color: 0xffffff, roughness: 0.02, metalness: 0.05, behavior: 'glass' },
+            { id: 'lava_trigger', name: '岩浆 (致死)', color: 0xff3300, roughness: 0.6, metalness: 0.1, behavior: 'lava' },
+            { id: 'fade_trigger', name: '机关 (坍塌)', color: 0x9c27b0, roughness: 0.5, metalness: 0.1, behavior: 'disappear' },
+            { id: 'speed_trigger', name: '加速带 (修复版)', color: 0x00ffff, roughness: 0.2, metalness: 0.4, behavior: 'speed' },
+            { id: 'bounce_trigger', name: '超级弹床', color: 0xff00ff, roughness: 0.3, metalness: 0.2, behavior: 'bounce' },
+            { id: 'teleport_trigger', name: '传送阵', color: 0x111111, roughness: 0.2, metalness: 0.6, behavior: 'teleport' },
+            { id: 'click_trigger', name: '点击方块触发器', color: 0xe67e22, roughness: 0.4, metalness: 0.3, behavior: 'click' },
+            { id: 'code_trigger', name: '特制代码触碰块', color: 0x2ecc71, roughness: 0.4, metalness: 0.4, behavior: 'code' }
+        ];
+        let selectedItemIndex = 0;
+
+        function gameAlert(msg) {
+            document.getElementById('dialog-msg').innerHTML = msg;
+            document.getElementById('custom-dialog').style.display = 'block';
+        }
+        function closeDialog() { document.getElementById('custom-dialog').style.display = 'none'; }
+        function openSettingsModal() { document.getElementById('settings-modal').style.display = 'block'; }
+        function closeSettingsModal() { document.getElementById('settings-modal').style.display = 'none'; }
+
+        function writeGlobalCode() {
+            // 用安全的内部 DOM 弹窗替换原生的 prompt
+            openCustomPrompt(langPack[currentLang].promptGlobalTitle, globalCustomCode || "playerVelocity.y += 0.1;", function(code) {
+                globalCustomCode = code;
+                gameAlert(langPack[currentLang].alertGlobalLoaded);
+            });
+        }
+
+        // ⏱️ 时长控制相关逻辑
+        function runPlayTimer() {
+            if (currentMode !== 'menu') {
+                totalPlayTime++;
+                localStorage.setItem('roblox_total_play_time_v5', totalPlayTime);
+                renderPlayTimeHUD();
+            }
+        }
+
+        function renderPlayTimeHUD() {
+            const hrs = Math.floor(totalPlayTime / 3600).toString().padStart(2, '0');
+            const mins = Math.floor((totalPlayTime % 3600) / 60).toString().padStart(2, '0');
+            const secs = (totalPlayTime % 60).toString().padStart(2, '0');
+            document.getElementById('play-time-hud').innerText = langPack[currentLang].playTime + `${hrs}:${mins}:${secs}`;
+        }
+
+        function exportPlayTime() {
+            const hrs = Math.floor(totalPlayTime / 3600).toString().padStart(2, '0');
+            const mins = Math.floor((totalPlayTime % 3600) / 60).toString().padStart(2, '0');
+            const secs = (totalPlayTime % 60).toString().padStart(2, '0');
+            const formatStr = `${hrs}:${mins}:${secs}`;
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(formatStr).then(() => {
+                    gameAlert(langPack[currentLang].alertCopied + `<br><b style='color:#00e676; font-size:18px;'>${formatStr}</b>`);
+                }).catch(() => {
+                    gameAlert(langPack[currentLang].alertShowTime + `<br><b style='color:#00e676; font-size:18px;'>${formatStr}</b>`);
+                });
+            } else {
+                gameAlert(langPack[currentLang].alertShowTime + `<br><b style='color:#00e676; font-size:18px;'>${formatStr}</b>`);
+            }
+        }
+
+        function clearPlayTime() {
+            if (confirm(langPack[currentLang].alertClearAsk)) {
+                totalPlayTime = 0;
+                localStorage.setItem('roblox_total_play_time_v5', 0);
+                renderPlayTimeHUD();
+                gameAlert(langPack[currentLang].alertClearSuccess);
+            }
+        }
+
+        // 初始化 3D 引擎
+        function initEngine() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x90caf9); 
+            scene.fog = new THREE.FogExp2(0x90caf9, 0.012);
+
+            camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.05, 1000);
+            camera.position.set(6, 10, 12);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.toneMappingExposure = 1.0;
+            container.appendChild(renderer.domElement);
+
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x4d7227, 0.55);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
+            dirLight.position.set(35, 55, 25);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            const quality = document.getElementById('graphics-quality').value;
+            renderer.shadowMap.enabled = true;
+            
+            const shadowRange = 45;
+            dirLight.shadow.camera.left = -shadowRange;
+            dirLight.shadow.camera.right = shadowRange;
+            dirLight.shadow.camera.top = shadowRange;
+            dirLight.shadow.camera.bottom = -shadowRange;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 160;
+
+            if (quality === 'normal') {
+                renderer.shadowMap.type = THREE.BasicShadowMap;
+                dirLight.shadow.mapSize.width = 512; dirLight.shadow.mapSize.height = 512;
+            } else if (quality === 'advanced') {
+                renderer.shadowMap.type = THREE.PCFShadowMap;
+                dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024;
+            } else if (quality === 'ultra') {
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
+                dirLight.shadow.bias = -0.0003; 
+            }
+
+            const floorGeo = new THREE.PlaneGeometry(160, 160);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x3b5227, roughness: 0.9, metalness: 0.05 });
+            floorPlane = new THREE.Mesh(floorGeo, floorMat);
+            floorPlane.rotation.x = -Math.PI / 2;
+            floorPlane.receiveShadow = true;
+            scene.add(floorPlane);
+
+            const grid = new THREE.GridHelper(160, 160, 0x22313f, 0x455a64);
+            grid.position.y = 0.005; 
+            scene.add(grid);
+
+            // 轨道控制器核心
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.08;
+            controls.maxPolarAngle = Math.PI / 2 - 0.01;
+            controls.minDistance = 0.1;
+            controls.enableZoom = false; 
+            controls.rotateSpeed = 1.6;  
+
+            // 玩家模型
+            const playerGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.6, 16);
+            const playerMat = new THREE.MeshStandardMaterial({ color: 0x2980b9, roughness: 0.4, metalness: 0.2 });
+            player = new THREE.Mesh(playerGeo, playerMat);
+            player.castShadow = true;
+            player.position.set(0, 5, 0);
+            scene.add(player);
+
+            // 阻断多点交互输入锁定
+            renderer.domElement.addEventListener('pointerdown', (e) => {
+                if (currentMode === 'menu') return;
+                if (joystickPointerIds.has(e.pointerId)) return;
+
+                pointerDownTime = Date.now();
+                pointerDownPos.set(e.clientX, e.clientY);
+
+                if (activeCamPointerId === null) {
+                    activeCamPointerId = e.pointerId;
+                    prevPointerPos = { x: e.clientX, y: e.clientY };
+                    if (viewMode === '1st') {
+                        isDraggingCam = true;
+                    }
+                }
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (currentMode === 'menu') return;
+                
+                if (e.pointerId === activeCamPointerId) {
+                    const deltaX = e.clientX - prevPointerPos.x;
+                    const deltaY = e.clientY - prevPointerPos.y;
+                    
+                    const sensitivity = 0.0075; 
+
+                    if (viewMode === '1st' && isDraggingCam) {
+                        fpYaw -= deltaX * sensitivity;
+                        fpPitch -= deltaY * sensitivity;
+                        fpPitch = Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, fpPitch));
+                    }
+                    prevPointerPos = { x: e.clientX, y: e.clientY };
+                }
+            });
+
+            window.addEventListener('pointerup', (e) => {
+                if (e.pointerId === activeCamPointerId) {
+                    isDraggingCam = false;
+                    activeCamPointerId = null;
+                    onPointerUp(e); 
+                }
+            });
+
+            window.addEventListener('pointercancel', (e) => {
+                if (e.pointerId === activeCamPointerId) {
+                    isDraggingCam = false;
+                    activeCamPointerId = null;
+                }
+            });
+
+            // 隔离背包控制面板的滑动冒泡
+            const bpPanel = document.getElementById('backpack-panel');
+            const preventPropagation = (e) => e.stopPropagation();
+            bpPanel.addEventListener('pointerdown', preventPropagation);
+            bpPanel.addEventListener('pointermove', preventPropagation);
+            bpPanel.addEventListener('touchmove', preventPropagation);
+
+            // 隔离虚拟代码输入窗口的事件，允许正常打字操作
+            const cpPanel = document.getElementById('custom-prompt-modal');
+            cpPanel.addEventListener('pointerdown', preventPropagation);
+            cpPanel.addEventListener('pointermove', preventPropagation);
+
+            window.addEventListener('keydown', (e) => handleKeyboard(e, true));
+            window.addEventListener('keyup', (e) => handleKeyboard(e, false));
+
+            setupMobileEvents();
+            renderBackpackGrid();
+            
+            setInterval(runPlayTimer, 1000);
+            renderPlayTimeHUD();
+            
+            animate();
+        }
+
+        function toggleToolMode() {
+            resetEraseTarget();
+            if (currentTool === 'build') {
+                currentTool = 'erase';
+            } else {
+                currentTool = 'build';
+            }
+            updateDynamicHUDStrings();
+        }
+
+        function resetEraseTarget() {
+            if (eraseTarget) {
+                eraseTarget.material.emissive.setHex(originalEmissive);
+                eraseTarget = null;
+            }
+        }
+
+        function onPointerUp(e) {
+            if (currentMode === 'menu') return;
+            if (document.getElementById('backpack-panel').style.display === 'block') return;
+            if (document.getElementById('custom-prompt-modal').style.display === 'block') return;
+
+            const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+            if (Date.now() - pointerDownTime > 250 || moveDist > 8) return;
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            if (currentMode === 'play') {
+                const intersects = raycaster.intersectObjects(blocks);
+                if (intersects.length > 0) {
+                    const targetBlock = intersects[0].object;
+                    if (targetBlock.blockBehavior === 'click' && targetBlock.customCode) {
+                        try { eval(targetBlock.customCode); } catch(err) { console.error(err); }
+                    }
+                }
+                return;
+            }
+
+            const targets = [floorPlane, ...blocks];
+            const intersects = raycaster.intersectObjects(targets);
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+
+                if (currentTool === 'erase') {
+                    if (intersect.object === floorPlane) { resetEraseTarget(); return; }
+                    if (eraseTarget === intersect.object) {
+                        scene.remove(intersect.object);
+                        blocks = blocks.filter(b => b !== intersect.object);
+                        eraseTarget = null;
+                    } else {
+                        resetEraseTarget();
+                        eraseTarget = intersect.object;
+                        originalEmissive = eraseTarget.material.emissive.getHex();
+                        eraseTarget.material.emissive.setHex(0xff1744); 
+                    }
+                    return;
+                }
+
+                resetEraseTarget();
+                let bx, by, bz;
+                if (intersect.object === floorPlane) {
+                    bx = Math.floor(intersect.point.x) + 0.5;
+                    by = 0.5;
+                    bz = Math.floor(intersect.point.z) + 0.5;
+                } else {
+                    const parentPos = intersect.object.position;
+                    const normal = intersect.face.normal;
+                    bx = parentPos.x + normal.x;
+                    by = parentPos.y + normal.y;
+                    bz = parentPos.z + normal.z;
+                }
+
+                if(blocks.some(b => Math.abs(b.position.x - bx) < 0.1 && Math.abs(b.position.y - by) < 0.1 && Math.abs(b.position.z - bz) < 0.1)) return;
+
+                const item = itemTypes[selectedItemIndex];
+                if (item.behavior === 'code' || item.behavior === 'click') {
+                    let placeholder = item.behavior === 'code' 
+                        ? `playerVelocity.y = 15; gameAlert('${langPack[currentLang].alertTriggered}');` 
+                        : `speedMultiplier = 3.0; gameAlert('${langPack[currentLang].alertSpeedTrig}');`;
+                    
+                    // 通过无冲突 DOM 替代 prompt，保证不打破全屏状态
+                    openCustomPrompt(langPack[currentLang].promptCodeBlockTitle, placeholder, function(typedCode) {
+                        createBlock(bx, by, bz, item.id, typedCode);
+                    });
+                } else {
+                    createBlock(bx, by, bz, item.id);
+                }
+            } else {
+                resetEraseTarget();
+            }
+        }
+
+        function createBlock(x, y, z, typeId, codeData = null) {
+            const item = itemTypes.find(i => i.id === typeId) || itemTypes[0];
+            const geo = new THREE.BoxGeometry(blockLength, blockLength, blockLength);
+            
+            let matProps = { color: item.color, roughness: item.roughness, metalness: item.metalness };
+            if (item.behavior === 'glass') { matProps.transparent = true; matProps.opacity = 0.45; }
+            else if (item.behavior === 'lava') { matProps.emissive = 0x550000; }
+
+            const mat = new THREE.MeshStandardMaterial(matProps);
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x212121 }));
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.add(line);
+
+            mesh.blockBehavior = item.behavior;
+            mesh.itemTypeId = item.id;
+            mesh.customCode = codeData;
+
+            scene.add(mesh);
+            blocks.push(mesh);
+        }
+
+        function toggleBackpack() {
+            const panel = document.getElementById('backpack-panel');
+            panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+        }
+
+        function renderBackpackGrid() {
+            const grid = document.getElementById('backpack-grid');
+            grid.innerHTML = '';
+            itemTypes.forEach((item, index) => {
+                const slot = document.createElement('div');
+                slot.className = `backpack-slot ${index === selectedItemIndex ? 'active' : ''}`;
+                
+                const colorBox = document.createElement('div');
+                colorBox.style.width = '30px'; colorBox.style.height = '30px';
+                colorBox.style.background = '#' + item.color.toString(16).padStart(6, '0');
+                colorBox.style.borderRadius = '5px';
+                if(item.behavior === 'glass') colorBox.style.opacity = '0.5';
+
+                const nameLabel = document.createElement('div');
+                nameLabel.innerText = itemTranslations[currentLang] ? itemTranslations[currentLang][index].name : item.name;
+                nameLabel.style.fontSize = '11px';
+
+                slot.appendChild(colorBox); slot.appendChild(nameLabel);
+                slot.onclick = () => {
+                    selectedItemIndex = index;
+                    toggleBackpack();
+                    renderBackpackGrid();
+                    updateDynamicHUDStrings();
+                };
+                grid.appendChild(slot);
+            });
+        }
+
+        function checkCollision(pos) {
+            let pMinX = pos.x - 0.35, pMaxX = pos.x + 0.35;
+            let pMinY = pos.y - 0.8,  pMaxY = pos.y + 0.8;
+            let pMinZ = pos.z - 0.35, pMaxZ = pos.z + 0.35;
+
+            for (let b of blocks) {
+                let bMinX = b.position.x - 0.5, bMaxX = b.position.x + 0.5;
+                let bMinY = b.position.y - 0.5, bMaxY = b.position.y + 0.5;
+                let bMinZ = b.position.z - 0.5, bMaxZ = b.position.z + 0.5;
+
+                if (pMaxX > bMinX && pMinX < bMaxX &&
+                    pMaxY > bMinY && pMinY < bMaxY &&
+                    pMaxZ > bMinZ && pMinZ < bMaxZ) {
+                    return { collide: true, type: b.blockBehavior, block: b };
+                }
+            }
+            return { collide: false };
+        }
+
+        function processTriggerLogic() {
+            let checkFeet = checkCollision(new THREE.Vector3(player.position.x, player.position.y - 0.05, player.position.z));
+            
+            if (checkFeet.collide) {
+                if (checkFeet.type === 'speed') {
+                    speedMultiplier = 2.6; 
+                } else if (checkFeet.type === 'solid' || checkFeet.type === 'glass') {
+                    speedMultiplier = 1.0; 
+                } else if (checkFeet.type === 'bounce') {
+                    playerVelocity.y = 14.0;
+                    isGrounded = false;
+                } else if (checkFeet.type === 'teleport') {
+                    player.position.set(0, 5, 0); playerVelocity.set(0,0,0);
+                    gameAlert(langPack[currentLang].alertSpawn);
+                } else if (checkFeet.type === 'lava') {
+                    player.position.set(0, 5, 0); playerVelocity.set(0,0,0);
+                    gameAlert(langPack[currentLang].alertRespawn);
+                } else if (checkFeet.type === 'code' && checkFeet.block && checkFeet.block.customCode) {
+                    try { eval(checkFeet.block.customCode); } catch(err) { console.error(err); }
+                } else if (checkFeet.type === 'disappear' && checkFeet.block) {
+                    const b = checkFeet.block;
+                    setTimeout(() => { scene.remove(b); blocks = blocks.filter(item => item !== b); }, 150);
+                }
+            } else if (isGrounded) {
+                speedMultiplier = 1.0; 
+            }
+        }
+
+        function updatePhysics(dt) {
+            if (currentMode === 'menu') return;
+
+            if (isNaN(player.position.x) || isNaN(player.position.y) || isNaN(player.position.z) || player.position.y < -40.0 || player.position.y > 600.0) {
+                player.position.set(0, 5, 0);
+                playerVelocity.set(0, 0, 0);
+            }
+
+            playerVelocity.y -= 22.0 * dt; 
+
+            let forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            if (forward.lengthSq() < 0.005) {
+                forward.copy(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion));
+                forward.y = 0;
+                forward.invert();
+            }
+            forward.normalize();
+
+            let right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+
+            const moveDir = new THREE.Vector3();
+            moveDir.addScaledVector(forward, moveInput.forward - moveInput.backward);
+            moveDir.addScaledVector(right, moveInput.right - moveInput.left);
+            if (moveDir.lengthSq() > 0) moveDir.normalize();
+
+            const finalSpeed = 6.0 * speedMultiplier;
+            playerVelocity.x = moveDir.x * finalSpeed;
+            playerVelocity.z = moveDir.z * finalSpeed;
+
+            let nextPos = player.position.clone();
+            nextPos.x += playerVelocity.x * dt;
+            if (!checkCollision(new THREE.Vector3(nextPos.x, player.position.y, player.position.z)).collide) {
+                player.position.x = nextPos.x;
+            }
+
+            nextPos = player.position.clone();
+            nextPos.z += playerVelocity.z * dt;
+            if (!checkCollision(new THREE.Vector3(player.position.x, player.position.y, nextPos.z)).collide) {
+                player.position.z = nextPos.z;
+            }
+
+            nextPos = player.position.clone();
+            nextPos.y += playerVelocity.y * dt;
+            isGrounded = false;
+
+            if (nextPos.y <= 0.8) {
+                player.position.y = 0.8;
+                playerVelocity.y = 0;
+                isGrounded = true;
+            } else {
+                let colY = checkCollision(new THREE.Vector3(player.position.x, nextPos.y, player.position.z));
+                if (!colY.collide) {
+                    player.position.y = nextPos.y;
+                } else {
+                    if (playerVelocity.y <= 0 && colY.block) { 
+                        isGrounded = true;
+                        player.position.y = colY.block.position.y + 0.5 + 0.8;
+                    }
+                    playerVelocity.y = 0;
+                }
+            }
+
+            processTriggerLogic();
+
+            if (moveInput.jump && isGrounded) {
+                playerVelocity.y = 8.5;
+                isGrounded = false;
+            }
+
+            if (viewMode === '1st') {
+                camera.position.copy(player.position).add(new THREE.Vector3(0, 0.6, 0));
+                camera.rotation.set(0, 0, 0);
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = fpYaw;
+                camera.rotation.x = fpPitch;
+            } else {
+                if (document.getElementById('camera-follow').value === 'on') {
+                    controls.target.copy(player.position);
+                }
+            }
+        }
+
+        function toggleMode() {
+            const backpackBtn = document.getElementById('backpack-btn');
+            const toolBtn = document.getElementById('tool-btn');
+            const dataGroup = document.getElementById('data-action-group');
+            resetEraseTarget();
+
+            if (currentMode === 'edit') {
+                currentMode = 'play';
+                backpackBtn.style.display = 'none';
+                toolBtn.style.display = 'none';
+                dataGroup.style.display = 'none';
+                document.getElementById('backpack-panel').style.display = 'none';
+                playerVelocity.set(0,0,0);
+            } else {
+                currentMode = 'edit';
+                backpackBtn.style.display = 'block';
+                toolBtn.style.display = 'block';
+                dataGroup.style.display = 'flex';
+            }
+            updateDynamicHUDStrings();
+        }
+
+        function toggleViewMode() {
+            if (viewMode === '3rd') {
+                viewMode = '1st';
+                controls.enabled = false; 
+                const euler = new THREE.Euler(0, 0, 0, 'YXZ').setFromQuaternion(camera.quaternion);
+                fpYaw = euler.y;
+                fpPitch = euler.x;
+            } else {
+                viewMode = '3rd';
+                controls.enabled = true;
+                controls.minDistance = 0.5;
+                controls.maxDistance = 35;
+                camera.position.copy(player.position).add(new THREE.Vector3(4, 6, 8));
+                controls.target.copy(player.position);
+                controls.update(); 
+            }
+            updateDynamicHUDStrings();
+        }
+
+        function saveMap() {
+            const coords = blocks.map(b => ({ x: b.position.x, y: b.position.y, z: b.position.z, t: b.itemTypeId, code: b.customCode }));
+            localStorage.setItem('roblox_code_map_v5', JSON.stringify(coords));
+            gameAlert(langPack[currentLang].alertSaveMapSuccess);
+        }
+
+        function loadMap() {
+            clearMap(false);
+            const raw = localStorage.getItem('roblox_code_map_v5');
+            if (!raw) { gameAlert(langPack[currentLang].alertNoSnapshot); return; }
+            const coords = JSON.parse(raw);
+            coords.forEach(c => createBlock(c.x, c.y, c.z, c.t || 'red_block', c.code));
+        }
+
+        function clearMap(alertUser = true) {
+            blocks.forEach(b => scene.remove(b));
+            blocks = [];
+            resetEraseTarget();
+            if(alertUser) gameAlert(langPack[currentLang].alertClearMapSuccess);
+        }
+
+        function handleKeyboard(e, isDown) {
+            switch (e.code) {
+                case 'KeyW': case 'ArrowUp': moveInput.forward = isDown ? 1 : 0; break;
+                case 'KeyS': case 'ArrowDown': moveInput.backward = isDown ? 1 : 0; break;
+                case 'KeyA': case 'ArrowLeft': moveInput.left = isDown ? 1 : 0; break;
+                case 'KeyD': case 'ArrowRight': moveInput.right = isDown ? 1 : 0; break;
+                case 'Space': moveInput.jump = isDown; break;
+            }
+        }
+
+        function setupMobileEvents() {
+            const bindPointerAction = (id, prop, val) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    joystickPointerIds.add(e.pointerId); 
+                    moveInput[prop] = val;
+                });
+
+                const release = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    joystickPointerIds.delete(e.pointerId); 
+                    moveInput[prop] = 0;
+                };
+
+                btn.addEventListener('pointerup', release);
+                btn.addEventListener('pointercancel', release);
+                btn.addEventListener('pointerleave', release);
+            };
+            
+            bindPointerAction('btn-up', 'forward', 1); 
+            bindPointerAction('btn-down', 'backward', 1);
+            bindPointerAction('btn-left', 'left', 1); 
+            bindPointerAction('btn-right', 'right', 1);
+
+            const jumpBtn = document.getElementById('jump-btn');
+            jumpBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                joystickPointerIds.add(e.pointerId);
+                moveInput.jump = true;
+            });
+            const releaseJump = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                joystickPointerIds.delete(e.pointerId);
+                moveInput.jump = false;
+            };
+            jumpBtn.addEventListener('pointerup', releaseJump);
+            jumpBtn.addEventListener('pointercancel', releaseJump);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            try {
+                const dt = Math.min(clock.getDelta(), 0.1); 
+                
+                if (globalCustomCode) {
+                    try { eval(globalCustomCode); } catch(err) { console.error(err); }
+                }
+
+                updatePhysics(dt);
+                if (viewMode === '3rd') controls.update();
+                renderer.render(scene, camera);
+            } catch(renderError) {
+                console.error("渲染帧死锁防护激活:", renderError);
+            }
+        }
+
+        function onWindowResize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            if (w <= 0 || h <= 0 || isNaN(w) || isNaN(h)) return; 
+            
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => { console.log(err.message); });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function startGame() {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('hud-bar').style.display = 'flex';
+            document.getElementById('mobile-controls').style.display = 'flex'; 
+            document.getElementById('play-time-hud').style.display = 'block'; 
+
+            currentMode = 'edit';
+            document.getElementById('backpack-btn').style.display = 'block';
+            document.getElementById('tool-btn').style.display = 'block';
+            document.getElementById('data-action-group').style.display = 'flex';
+            
+            updateDynamicHUDStrings();
+            renderBackpackGrid();
+
+            if(!scene) {
+                initEngine();
+                window.addEventListener('resize', onWindowResize);
+            } else {
+                viewMode = '3rd';
+                controls.enabled = true;
+                player.position.set(0, 5, 0);
+                playerVelocity.set(0,0,0);
+                camera.position.set(6, 10, 12);
+                controls.target.copy(player.position);
+                controls.update();
+            }
+        }
+
+        function exitToMenu() {
+            document.getElementById('main-menu').style.display = 'flex';
+            document.getElementById('hud-bar').style.display = 'none';
+            document.getElementById('mobile-controls').style.display = 'none';
+            document.getElementById('backpack-panel').style.display = 'none';
+            document.getElementById('play-time-hud').style.display = 'none';
+            currentMode = 'menu';
+            resetEraseTarget();
+        }
+    </script>
+</body>
+</html>

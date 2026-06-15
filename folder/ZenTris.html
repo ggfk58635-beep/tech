@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>俄罗斯方块</title>
+    <style>
+        body { margin:0; background:#111; color:#fff; text-align:center; font-family:sans-serif; overflow:hidden; touch-action: none; }
+        /* 启动遮罩层 */
+        #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: #000; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .lang-btn { margin: 15px; padding: 20px 40px; font-size: 24px; background: #333; color: white; border: 2px solid #555; border-radius: 10px; cursor: pointer; }
+        .lang-btn:active { background: #555; }
+        
+        canvas { display:block; margin: 10px auto; background:#000; border:4px solid #444; width: 90vw; height: calc(90vw * 2); max-height: 70vh; }
+        #ui { position:fixed; bottom:0; left:0; width:100%; height:80px; display:flex; justify-content:space-around; align-items:center; background: #222; border-top: 2px solid #444; }
+        button { flex: 1; height: 100%; font-size:24px; background:transparent; color:white; border:none; touch-action: manipulation; }
+        button:active { background:#444; }
+    </style>
+</head>
+<body>
+
+<div id="overlay">
+    <div style="margin-bottom: 20px; font-size: 24px; color: #0dc2ff;">选择语言 / Select Language</div>
+    <button class="lang-btn" onclick="selectLang('zh')">中文</button>
+    <button class="lang-btn" onclick="selectLang('en')">English</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+    <button onclick="handleAction('move', -1)">⬅</button>
+    <button onclick="handleAction('rotate')">⟳</button>
+    <button onclick="handleAction('move', 1)">➡</button>
+    <button onclick="handleAction('drop')">⬇</button>
+</div>
+
+<script>
+// --- 多语言字典 ---
+const i18n = {
+    'zh': { score: '分数', next: '下一个' },
+    'en': { score: 'Score', next: 'Next' }
+};
+let currentLang = 'zh';
+
+// --- 音频引擎 ---
+const AudioEngine = {
+    ctx: null,
+    init() { if(!this.ctx) this.ctx = new (window.AudioContext||window.webkitAudioContext)(); },
+    playSFX(type) {
+        if(!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        if(type === 'move') { osc.frequency.value = 180; osc.type = 'sine'; gain.gain.value = 0.15; }
+        else if(type === 'rotate') { osc.frequency.value = 320; osc.type = 'sine'; gain.gain.value = 0.15; }
+        else if(type === 'clear') { osc.frequency.value = 220; osc.type = 'triangle'; gain.gain.value = 0.3; }
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
+        osc.stop(this.ctx.currentTime + 0.4);
+    },
+    playBGM() {
+        if(!this.ctx) return;
+        const melody = [64, 0, 67, 0, 71, 72, 71, 67, 64, 0, 60, 0, 64, 67, 64];
+        let t = this.ctx.currentTime;
+        melody.forEach((note, i) => {
+            if(note > 0) {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = "sine"; 
+                osc.frequency.value = note * 4;
+                gain.gain.setValueAtTime(0.12, t + i * 0.9);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.9 + 0.8);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(t + i * 0.9);
+                osc.stop(t + i * 0.9 + 0.8);
+            }
+        });
+        setTimeout(() => this.playBGM(), melody.length * 900);
+    }
+};
+
+// --- 游戏选择初始化 ---
+function selectLang(lang) {
+    currentLang = lang;
+    document.getElementById('overlay').style.display = 'none';
+    AudioEngine.init();
+    AudioEngine.playBGM();
+}
+
+function handleAction(type, val) {
+    if(!AudioEngine.ctx) return; // 没选语言前不响应
+    if(type === 'move') { move(val); AudioEngine.playSFX('move'); }
+    else if(type === 'rotate') { rotate(); AudioEngine.playSFX('rotate'); }
+    else if(type === 'drop') { drop(); }
+}
+
+// --- 游戏逻辑 ---
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const COLS = 10, ROWS = 20;
+canvas.width = 300; canvas.height = 600;
+const BLOCK = 30;
+
+const pieces = [
+    {m: [[1,1,1,1]], c: '#FF0D72'}, {m: [[1,1],[1,1]], c: '#0DC2FF'},
+    {m: [[0,1,0],[1,1,1]], c: '#0DFF72'}, {m: [[1,0,0],[1,1,1]], c: '#F538FF'},
+    {m: [[0,0,1],[1,1,1]], c: '#FF8E0D'}, {m: [[0,1,1],[1,1,0]], c: '#FFE138'},
+    {m: [[1,1,0],[0,1,1]], c: '#3877FF'}
+];
+
+let arena = Array.from({length:ROWS},()=>Array(COLS).fill(0));
+let player = { pos:{x:3,y:0}, matrix:[], color: '' };
+let nextPiece = null;
+let score = 0;
+let isSweeping = false;
+
+function createPiece() {
+    const p = pieces[Math.random()*pieces.length|0];
+    return { matrix: p.m, color: p.c, pos: {x: 3, y: 0} };
+}
+
+function spawn(){
+    if(!nextPiece) nextPiece = createPiece();
+    player = nextPiece;
+    nextPiece = createPiece();
+    
+    if(collide(arena, player)){
+        arena = Array.from({length:ROWS},()=>Array(COLS).fill(0));
+        score = 0;
+    }
+}
+
+function collide(a, p){
+    for(let y=0; y<p.matrix.length; y++){
+        for(let x=0; x<p.matrix[y].length; x++){
+            if(p.matrix[y][x]){
+                let ay = y + p.pos.y;
+                let ax = x + p.pos.x;
+                if(ay >= ROWS || ax < 0 || ax >= COLS || (a[ay] && a[ay][ax])) return true;
+            }
+        }
+    }
+    return false;
+}
+
+function merge(a, p){
+    p.matrix.forEach((r, y) => {
+        r.forEach((v, x) => {
+            if(v) a[y+p.pos.y][x+p.pos.x] = {val: 1, color: p.color};
+        });
+    });
+}
+
+function rotate(){
+    if(isSweeping) return;
+    const oldMatrix = player.matrix;
+    player.matrix = player.matrix[0].map((_,i) => player.matrix.map(r => r[i])).reverse();
+    if(collide(arena, player)) player.matrix = oldMatrix;
+}
+
+function move(dir){
+    if(isSweeping) return;
+    player.pos.x += dir;
+    if(collide(arena, player)) player.pos.x -= dir;
+}
+
+function drop(){
+    if(isSweeping) return;
+    player.pos.y++;
+    if(collide(arena, player)){
+        player.pos.y--;
+        merge(arena, player);
+        sweep();
+        spawn();
+    }
+}
+
+function sweep(){
+    let lines = 0;
+    outer: for(let y=ROWS-1; y>=0; y--){
+        for(let x=0; x<COLS; x++) if(!arena[y][x]) continue outer;
+        arena[y] = "FLASH";
+        lines++;
+    }
+    
+    if(lines > 0){
+        score += lines * 100;
+        AudioEngine.playSFX('clear');
+        isSweeping = true;
+        setTimeout(() => {
+            arena = arena.filter(row => row !== "FLASH");
+            while(arena.length < ROWS) arena.unshift(Array(COLS).fill(0));
+            isSweeping = false;
+        }, 300);
+    }
+}
+
+function getGhostY() {
+    let ghost = { ...player, pos: { ...player.pos } };
+    while (!collide(arena, ghost)) { ghost.pos.y++; }
+    return ghost.pos.y - 1;
+}
+
+function draw(){
+    ctx.fillStyle="#000";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    
+    arena.forEach((r,y) => {
+        if(r === "FLASH"){ ctx.fillStyle = "#fff"; ctx.fillRect(0, y*BLOCK, canvas.width, BLOCK-1); }
+        else {
+            r.forEach((v,x) => {
+                if(v){ ctx.fillStyle = v.color; ctx.fillRect(x*BLOCK, y*BLOCK, BLOCK-1, BLOCK-1); }
+            });
+        }
+    });
+
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = "#fff";
+    let ghostY = getGhostY();
+    player.matrix.forEach((r,y) => r.forEach((v,x) => {
+        if(v) ctx.fillRect((x+player.pos.x)*BLOCK, (y+ghostY)*BLOCK, BLOCK-1, BLOCK-1);
+    }));
+    ctx.globalAlpha = 1.0;
+
+    ctx.fillStyle = player.color;
+    player.matrix.forEach((r,y) => r.forEach((v,x) => {
+        if(v) ctx.fillRect((x+player.pos.x)*BLOCK, (y+player.pos.y)*BLOCK, BLOCK-1, BLOCK-1);
+    }));
+
+    // 使用字典里的翻译
+    ctx.fillStyle = "white";
+    ctx.font = "20px Arial";
+    ctx.fillText(i18n[currentLang].score + ": " + score, 10, 25);
+    ctx.fillText(i18n[currentLang].next + ":", 210, 25);
+    
+    nextPiece.matrix.forEach((r,y) => r.forEach((v,x) => {
+        if(v) {
+            ctx.fillStyle = nextPiece.color;
+            ctx.fillRect(230 + x*15, 40 + y*15, 13, 13);
+        }
+    }));
+}
+
+let last=0, dropI=800;
+function update(t=0){
+    if(AudioEngine.ctx) { // 只有选了语言才开始下落
+        if(t - last > dropI){ drop(); last = t; }
+    }
+    draw();
+    requestAnimationFrame(update);
+}
+
+spawn();
+update();
+</script>
+</body>
+</html>

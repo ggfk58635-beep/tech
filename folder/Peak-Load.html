@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GlowVortex 手机性能压力测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050508;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #fff;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        /* UI 仪表盘 */
+        .dashboard {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: rgba(15, 15, 25, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 90%;
+            max-width: 360px;
+            pointer-events: auto;
+        }
+        .fps-container {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #00ffcc;
+            text-shadow: 0 0 20px rgba(0, 255, 204, 0.5);
+            margin-bottom: 5px;
+        }
+        .fps-label {
+            font-size: 0.8rem;
+            color: #8a8a9e;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .controls {
+            margin-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 15px;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #ccccdd;
+            margin-bottom: 5px;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            accent-color: #ff007f;
+            cursor: pointer;
+        }
+        .status-tag {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            background: rgba(0, 255, 204, 0.2);
+            color: #00ffcc;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <div class="fps-container" id="fps-display">60</div>
+        <div class="fps-label">FPS 帧率</div>
+        <div class="status-tag" id="status-display">运行流畅</div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>
+                    <span>粒子数量 (压力源)</span>
+                    <span id="count-display">5000</span>
+                </label>
+                <input type="range" id="particle-slider" min="1000" max="50000" step="1000" value="5000">
+            </div>
+        </div>
+    </div>
+
+    <canvas id="stage"></canvas>
+
+    <script>
+        const canvas = document.getElementById('stage');
+        const ctx = canvas.getContext('2d');
+        const fpsDisplay = document.getElementById('fps-display');
+        const statusDisplay = document.getElementById('status-display');
+        const particleSlider = document.getElementById('particle-slider');
+        const countDisplay = document.getElementById('count-display');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        let particles = [];
+        let maxParticles = parseInt(particleSlider.value);
+
+        // 监听窗口大小缩放
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        // 粒子类定义
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = width / 2;
+                this.y = height / 2;
+                // 随机角度与半径
+                this.angle = Math.random() * Math.PI * 2;
+                this.radius = Math.random() * Math.min(width, height) * 0.4 + 10;
+                this.speed = (Math.random() * 0.02 + 0.005);
+                this.size = Math.random() * 2.5 + 0.5;
+                // 炫彩渐变色色相
+                this.hue = Math.random() * 360;
+                this.brightness = Math.random() * 20 + 70;
+            }
+
+            update() {
+                // 让粒子绕中心旋转并向外扩散
+                this.angle += this.speed;
+                this.radius += Math.sin(this.angle * 2) * 0.5; 
+
+                // 转换极坐标为直角坐标
+                this.currentX = width / 2 + Math.cos(this.angle) * this.radius;
+                this.currentY = height / 2 + Math.sin(this.angle) * this.radius;
+
+                // 超出屏幕重置
+                if (this.currentX < 0 || this.currentX > width || this.currentY < 0 || this.currentY > height) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.currentX, this.currentY, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, 0.8)`;
+                ctx.fill();
+            }
+        }
+
+        // 初始化粒子池
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < maxParticles; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        // 核心性能计算变量
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 60;
+
+        // 渲染与发热主循环
+        function loop() {
+            // 造成视觉拖尾，同时增加像素混合图层压力
+            ctx.fillStyle = 'rgba(5, 5, 8, 0.15)';
+            ctx.fillRect(0, 0, width, height);
+
+            // 混合模式调为“变亮”，这会让 GPU 进行高强度的颜色混合计算
+            ctx.globalCompositeOperation = 'lighter';
+
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+            }
+
+            ctx.globalCompositeOperation = 'source-over';
+
+            // FPS 计算逻辑
+            frameCount++;
+            const now = performance.now();
+            if (now >= lastTime + 1000) {
+                fps = Math.round((frameCount * 1000) / (now - lastTime));
+                fpsDisplay.innerText = fps;
+                
+                // 动态更新手机状态标签
+                if (fps >= 55) {
+                    fpsDisplay.style.color = '#00ffcc';
+                    statusDisplay.innerText = "运行流畅 / 毫无压力";
+                    statusDisplay.style.backgroundColor = "rgba(0, 255, 204, 0.2)";
+                    statusDisplay.style.color = "#00ffcc";
+                } else if (fps >= 35) {
+                    fpsDisplay.style.color = '#ffcc00';
+                    statusDisplay.innerText = "略微发热 / 负载中等";
+                    statusDisplay.style.backgroundColor = "rgba(255, 204, 0, 0.2)";
+                    statusDisplay.style.color = "#ffcc00";
+                } else {
+                    fpsDisplay.style.color = '#ff0055';
+                    statusDisplay.innerText = "开始卡顿 / 核心滚烫";
+                    statusDisplay.style.backgroundColor = "rgba(255, 0, 85, 0.2)";
+                    statusDisplay.style.color = "#ff0055";
+                }
+                
+                frameCount = 0;
+                lastTime = now;
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // 滑块交互监听
+        particleSlider.addEventListener('input', (e) => {
+            maxParticles = parseInt(e.target.value);
+            countDisplay.innerText = maxParticles;
+            initParticles();
+        });
+
+        // 启动测试
+        initParticles();
+        loop();
+    </script>
+</body>
+</html>

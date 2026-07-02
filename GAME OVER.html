@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rocket Mission</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let w, h, stage = 'walk', progress = 0, door = 0; // door 0=开, 1=关
+
+        function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+        window.onresize = resize; resize();
+
+        function draw() {
+            // 背景根据阶段：walk(蓝天), cockpit/launch(灰), space(黑)
+            let bg = stage === 'space' ? '#000' : (stage === 'walk' ? '#87CEEB' : '#444');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0,0,w,h);
+
+            if (stage === 'walk') {
+                ctx.fillStyle = '#8B4513'; ctx.fillRect(0, h-50, w, 50); // 地面
+                ctx.fillStyle = 'red'; ctx.fillRect(w-200, h-200, 60, 150); // 火箭
+                // 绘制开启的舱门 (一个空缺)
+                ctx.fillStyle = 'yellow'; ctx.fillRect(progress, h-90, 40, 40); // 玩家
+                if (progress < w - 240) progress += 2; else stage = 'closing';
+            } 
+            else if (stage === 'closing') {
+                ctx.fillStyle = '#8B4513'; ctx.fillRect(0, h-50, w, 50);
+                ctx.fillStyle = 'red'; ctx.fillRect(w-200, h-200, 60, 150);
+                // 舱门由上至下关闭 (door从0变到1)
+                ctx.fillStyle = 'darkred'; 
+                ctx.fillRect(w-200, h-200 + door * 150, 60, 10); // 门板
+                if (door < 1) door += 0.05; else stage = 'cockpit';
+            }
+            else if (stage === 'cockpit') {
+                ctx.fillStyle = '#333'; ctx.fillRect(0,0,w,h);
+                // 大红色按钮，占据屏幕中央
+                ctx.fillStyle = 'red'; ctx.fillRect(w/4, h/4, w/2, h/2);
+                ctx.fillStyle = 'white'; ctx.font = "bold 40px Arial";
+                ctx.fillText("LAUNCH", w/2 - 70, h/2 + 15);
+            }
+            else if (stage === 'launch') {
+                // 灰色背景起飞
+                ctx.fillStyle = 'red'; ctx.fillRect(w/2-30, h - progress, 60, 150);
+                progress += 5;
+                if (progress > h + 200) stage = 'space';
+            }
+            else if (stage === 'space') {
+                ctx.fillStyle = 'white'; ctx.fillText("GAME OVER", w/2 - 150, h/2);
+            }
+            requestAnimationFrame(draw);
+        }
+
+        canvas.onmousedown = (e) => {
+            if (stage === 'cockpit') stage = 'launch';
+        };
+        draw();
+    </script>
+</body>
+</html>
